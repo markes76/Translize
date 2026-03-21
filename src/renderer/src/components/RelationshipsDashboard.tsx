@@ -86,16 +86,36 @@ export default function RelationshipsDashboard({ onBack }: Props): React.ReactEl
     } catch {}
   }
 
-  const handleCsvImport = async (csvText: string) => {
+  const handleCsvImport = async (csvText: string): Promise<{ imported: number; skipped: number; error?: string }> => {
     try {
       const Papa = await import('papaparse')
-      const result = Papa.default.parse(csvText, { header: true, skipEmptyLines: true })
-      for (const row of result.data as Record<string, string>[]) {
-        if (row.name || row.Name) {
-          await handleSaveContact({ name: row.name ?? row.Name, company: row.company ?? row.Company, role: row.role ?? row.Role, notes: row.notes ?? row.Notes })
+      const result = Papa.default.parse(csvText, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() })
+      const rows = result.data as Record<string, string>[]
+      let imported = 0; let skipped = 0
+      for (const row of rows) {
+        // Accept any column that fuzzy-matches the field name
+        const find = (keys: string[]) => {
+          for (const k of keys) {
+            const match = Object.keys(row).find(h => h === k || h.includes(k))
+            if (match && row[match]?.trim()) return row[match].trim()
+          }
+          return undefined
         }
+        const name = find(['name', 'full name', 'fullname', 'contact', 'first name'])
+        if (!name) { skipped++; continue }
+        await handleSaveContact({
+          name,
+          company: find(['company', 'organization', 'org', 'employer', 'account']),
+          role: find(['role', 'title', 'job title', 'position', 'job']),
+          notes: find(['notes', 'note', 'description', 'desc', 'comments', 'comment', 'bio'])
+        })
+        imported++
       }
-    } catch {}
+      if (imported === 0) return { imported: 0, skipped, error: 'No rows had a recognizable name column.' }
+      return { imported, skipped }
+    } catch (e) {
+      return { imported: 0, skipped: 0, error: (e as Error).message }
+    }
   }
 
   return (
@@ -103,12 +123,17 @@ export default function RelationshipsDashboard({ onBack }: Props): React.ReactEl
 
       {/* Add Contact Modal */}
       {showAddModal && (
-        <AddContactModal mode={addMode} onModeChange={setAddMode} onSave={handleSaveContact} onNlpParse={handleNlpParse} onCsvImport={handleCsvImport} onClose={() => setShowAddModal(false)} />
+        <AddContactModal mode={addMode} onModeChange={setAddMode} onSave={handleSaveContact} onNlpParse={handleNlpParse} onCsvImport={handleCsvImport} onClose={() => setShowAddModal(false)} onImportDone={() => { setShowAddModal(false); window.translize.skill.list().then((list: unknown) => setSkills(list as Skill[])) }} />
       )}
 
       <header style={{ padding: `${V.sp4} ${V.sp8}`, display: 'flex', alignItems: 'center', gap: V.sp4, borderBottom: '1px solid var(--border-subtle)' }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>← Home</button>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700 }}>Relationships</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, flex: 1 }}>Relationships</h1>
+        <button onClick={() => { setAddMode('form'); setShowAddModal(true) }} style={{
+          padding: `${V.sp2} ${V.sp5}`, background: 'var(--primary)', color: 'white', border: 'none',
+          borderRadius: 'var(--radius-md)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
+          boxShadow: 'var(--shadow-sm)'
+        }}>+ Add Contact</button>
       </header>
 
       <main style={{ flex: 1, overflow: 'auto', padding: V.sp8 }}>
@@ -372,17 +397,21 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
   )
 }
 
-function AddContactModal({ mode, onModeChange, onSave, onNlpParse, onCsvImport, onClose }: {
+function AddContactModal({ mode, onModeChange, onSave, onNlpParse, onCsvImport, onClose, onImportDone }: {
   mode: 'form' | 'nlp' | 'csv'; onModeChange: (m: 'form' | 'nlp' | 'csv') => void
   onSave: (c: { name: string; company?: string; role?: string; notes?: string }) => void
-  onNlpParse: (text: string) => void; onCsvImport: (csv: string) => void; onClose: () => void
+  onNlpParse: (text: string) => void
+  onCsvImport: (csv: string) => Promise<{ imported: number; skipped: number; error?: string }>
+  onClose: () => void; onImportDone: () => void
 }): React.ReactElement {
   const [name, setName] = useState(''); const [company, setCompany] = useState(''); const [role, setRole] = useState(''); const [notes, setNotes] = useState('')
   const [nlpText, setNlpText] = useState(''); const [csvText, setCsvText] = useState('')
+  const [csvImporting, setCsvImporting] = useState(false)
+  const [csvResult, setCsvResult] = useState<{ imported: number; skipped: number; error?: string } | null>(null)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 520, maxHeight: '80vh', overflow: 'auto', background: 'var(--surface-raised)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: V.sp8 }}>
+    <div className="modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: 520, maxHeight: '80vh', overflow: 'auto', background: 'var(--surface-raised)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-xl)', padding: V.sp8 }}>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: V.sp6 }}>Add Contact</h2>
 
         {/* Tabs */}
@@ -431,15 +460,56 @@ function AddContactModal({ mode, onModeChange, onSave, onNlpParse, onCsvImport, 
 
         {mode === 'csv' && (
           <>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-2)', marginBottom: V.sp4, lineHeight: 1.6 }}>
-              Paste CSV data with headers: name, company, role, notes. Or upload a CSV file.
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-2)', marginBottom: V.sp3, lineHeight: 1.6 }}>
+              Upload a CSV file or paste CSV text. Any columns matching <strong>name, company, role, notes</strong> (or similar) will be imported. Extra or missing columns are ignored.
             </p>
-            <textarea value={csvText} onChange={e => setCsvText(e.target.value)} rows={6}
+
+            {/* File picker */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: V.sp3, padding: V.sp3, background: 'var(--surface-2)', border: '1px dashed var(--border-2)', borderRadius: 'var(--radius-md)', cursor: 'pointer', marginBottom: V.sp3, fontSize: 'var(--text-sm)', color: 'var(--ink-2)', fontWeight: 500 }}>
+              <span style={{ fontSize: 18 }}>📂</span>
+              Choose CSV file
+              <input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={e => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = ev => { if (ev.target?.result) setCsvText(ev.target.result as string) }
+                reader.readAsText(file)
+                e.target.value = ''
+              }} />
+            </label>
+
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)', textAlign: 'center', marginBottom: V.sp3 }}>or paste below</div>
+
+            <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setCsvResult(null) }} rows={6}
               placeholder={'name,company,role,notes\nSarah Chen,Acme Corp,VP Engineering,Key decision maker\nJohn Smith,Beta Inc,CTO,Technical contact'}
-              style={{ width: '100%', padding: V.sp4, background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontFamily: 'monospace', lineHeight: 1.5, resize: 'vertical', outline: 'none', marginBottom: V.sp4 }} />
-            <button onClick={() => { if (csvText.trim()) onCsvImport(csvText.trim()) }}
-              disabled={!csvText.trim()} style={{ width: '100%', padding: V.sp4, background: csvText.trim() ? 'var(--primary)' : 'var(--surface-3)', color: csvText.trim() ? 'white' : 'var(--ink-4)', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: csvText.trim() ? 'pointer' : 'default' }}>
-              Import Contacts
+              style={{ width: '100%', padding: V.sp4, background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontFamily: 'monospace', lineHeight: 1.5, resize: 'vertical', outline: 'none', marginBottom: V.sp3 }} />
+
+            {/* Result feedback */}
+            {csvResult && (
+              <div style={{ padding: V.sp3, borderRadius: 'var(--radius-sm)', marginBottom: V.sp3, fontSize: 'var(--text-sm)', fontWeight: 500,
+                background: csvResult.error ? 'var(--negative-subtle)' : 'var(--positive-subtle)',
+                color: csvResult.error ? 'var(--negative)' : 'var(--positive)',
+                border: `1px solid ${csvResult.error ? 'var(--negative)' : 'var(--positive)'}` }}>
+                {csvResult.error
+                  ? `Import failed: ${csvResult.error}`
+                  : `Imported ${csvResult.imported} contact${csvResult.imported !== 1 ? 's' : ''}${csvResult.skipped > 0 ? ` (${csvResult.skipped} row${csvResult.skipped !== 1 ? 's' : ''} skipped — no name found)` : ''}`}
+              </div>
+            )}
+
+            <button
+              onClick={async () => {
+                if (!csvText.trim() || csvImporting) return
+                setCsvImporting(true); setCsvResult(null)
+                const result = await onCsvImport(csvText.trim())
+                setCsvImporting(false)
+                setCsvResult(result)
+                if (!result.error && result.imported > 0) {
+                  setTimeout(() => onImportDone(), 1200)
+                }
+              }}
+              disabled={!csvText.trim() || csvImporting}
+              style={{ width: '100%', padding: V.sp4, background: csvText.trim() && !csvImporting ? 'var(--primary)' : 'var(--surface-3)', color: csvText.trim() && !csvImporting ? 'white' : 'var(--ink-4)', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: csvText.trim() && !csvImporting ? 'pointer' : 'default' }}>
+              {csvImporting ? 'Importing...' : 'Import Contacts'}
             </button>
           </>
         )}
