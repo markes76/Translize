@@ -81,6 +81,8 @@ const api = {
       ipcRenderer.invoke('knowledge:smart-query', sessionId, transcript),
     detectQuestion: (transcript: string): Promise<string | null> =>
       ipcRenderer.invoke('knowledge:detect-question', transcript),
+    ask: (sessionId: string, question: string): Promise<{ question: string; answer: string; source: string; confidence: string } | null> =>
+      ipcRenderer.invoke('knowledge:ask', sessionId, question),
     status: (sessionId: string): Promise<{ documentCount: number; chunkCount: number; indexing: boolean }> =>
       ipcRenderer.invoke('knowledge:status', sessionId)
   },

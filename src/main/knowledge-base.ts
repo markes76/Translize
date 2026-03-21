@@ -126,6 +126,19 @@ export function setupKnowledgeBaseIpc(): void {
     }
   })
 
+  // Direct ask — skips detectQuestion, takes a literal user question and answers from vectors
+  ipcMain.handle('knowledge:ask', async (_e, sessionId: string, question: string): Promise<SmartQueryResult | null> => {
+    if (!sessionId || !question || question.length < 3) return null
+    try {
+      const chunks = await queryVectors(sessionId, question, 5)
+      if (chunks.length === 0) return null
+      return await extractAnswer(question, chunks)
+    } catch (err) {
+      console.error('[Knowledge] ask failed:', err)
+      return null
+    }
+  })
+
   ipcMain.handle('knowledge:status', (_e, sessionId: string) => {
     if (!sessionId) return { documentCount: 0, chunkCount: 0, indexing: false }
     const status = getIndexStatus(sessionId)

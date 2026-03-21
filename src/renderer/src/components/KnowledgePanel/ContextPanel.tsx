@@ -34,6 +34,7 @@ interface Props {
 export default function ContextPanel({ sessionId, notebookId, segments, isCapturing, onActivityLog }: Props): React.ReactElement {
   const [cards, setCards] = useState<QACard[]>([])
   const [status, setStatus] = useState({ documentCount: 0, chunkCount: 0, indexing: false })
+  const docCountRef = useRef(0) // ref so interval closure always sees latest value
   const lastProcessedIdx = useRef(0)
   const cacheRef = useRef<Set<string>>(new Set())
   const ivRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -48,6 +49,7 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
     if (!sessionId) return
     window.translize.knowledge.status(sessionId).then(s => {
       setStatus(s)
+      docCountRef.current = s.documentCount
       if (s.documentCount > 0) log(`${s.documentCount} doc${s.documentCount !== 1 ? 's' : ''} indexed`, 'success')
     })
     if (notebookId) log('NotebookLM linked', 'nlm')
@@ -75,12 +77,12 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
       addCard({ id: cardId, question, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'searching' })
       log(`Question: "${question}"`, 'info')
 
-      // Search local docs
+      // Search local docs — use ref to avoid stale closure
       let foundLocal = false
-      if (status.documentCount > 0) {
+      if (docCountRef.current > 0) {
         log('Searching local docs...', 'search')
         try {
-          const r = await window.translize.knowledge.smartQuery(sessionId, rawText)
+          const r = await window.translize.knowledge.ask(sessionId, question)
           if (r) {
             foundLocal = true
             log(`Local answer found`, 'success')
@@ -123,7 +125,7 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
     ivRef.current = setInterval(run, 6000)
     setTimeout(run, 1500)
     return () => { if (ivRef.current) clearInterval(ivRef.current) }
-  }, [isCapturing, sessionId, segments, status.documentCount, notebookId])
+  }, [isCapturing, sessionId, segments, notebookId])
 
   const handleSearchWeb = async (card: QACard) => {
     if (!notebookId) return
@@ -351,7 +353,7 @@ function AskInput({ sessionId, notebookId, onAddCard, onUpdateCard, onLog }: {
     const searches = []
 
     if (sessionId) {
-      searches.push(window.translize.knowledge.smartQuery(sessionId, q).then(r => {
+      searches.push(window.translize.knowledge.ask(sessionId, q).then(r => {
         if (r) { results.push({ source: r.source, provenance: 'local', answer: r.answer }); onLog('Found in local docs', 'success') }
       }).catch(() => {}))
     }
