@@ -99,8 +99,8 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
         <div style={S.inner}>
           {/* Name */}
           <div style={S.section}>
-            <label style={S.label}>Session Name (optional)</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Acme Corp" style={S.input} />
+            <label style={S.label}>Contact or Company Name (optional)</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jane Smith, Acme Corp" style={S.input} />
           </div>
 
           {/* Documents */}

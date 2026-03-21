@@ -68,6 +68,8 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [detailSession, setDetailSession] = useState<Session | null>(null)
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set())
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
 
   useEffect(() => {
     window.translize.session.list().then((l: unknown) => setSessions(l as Session[]))
@@ -79,6 +81,14 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
     const [s, sk] = await Promise.all([window.translize.session.list(), window.translize.skill.list()])
     setSessions(s as Session[]); setSkills(sk as Skill[])
   }, [])
+
+  const saveSessionName = async (session: Session, name: string) => {
+    const trimmed = name.trim()
+    await window.translize.session.update(session.id, { name: trimmed || undefined })
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, name: trimmed || undefined } : s))
+    setDetailSession(prev => prev?.id === session.id ? { ...prev, name: trimmed || undefined } : prev)
+    setEditingName(false)
+  }
 
   const del = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -345,7 +355,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                     <TableRow
                       key={s.id}
                       selected={isSelected}
-                      onClick={() => setDetailSession(isSelected ? null : s)}
+                      onClick={() => { setDetailSession(isSelected ? null : s); setEditingName(false) }}
                     >
                       <td style={{ padding: `${V.sp3} ${V.sp3} ${V.sp3} ${V.sp4}` }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', display: 'block', background: sentimentColor(sentiment) }} />
@@ -420,15 +430,32 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
           overflowY: 'auto'
         }}>
           <div style={{ padding: V.sp5, borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--ink-1)' }}>
-                {detailSession.name || detailSession.calls[0]?.contactName || 'Unnamed'}
-              </div>
+            <div style={{ flex: 1, minWidth: 0, marginRight: V.sp3 }}>
+              {editingName ? (
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onBlur={() => saveSessionName(detailSession, nameDraft)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveSessionName(detailSession, nameDraft); if (e.key === 'Escape') setEditingName(false) }}
+                  placeholder="Enter contact name..."
+                  style={{ width: '100%', padding: '4px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontWeight: 700, outline: 'none', boxSizing: 'border-box' }}
+                />
+              ) : (
+                <div
+                  onClick={() => { setNameDraft(detailSession.name || ''); setEditingName(true) }}
+                  style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 700, color: detailSession.name ? 'var(--ink-1)' : 'var(--ink-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: V.sp2 }}
+                  title="Click to edit contact name"
+                >
+                  {detailSession.name || detailSession.calls[0]?.contactName || <span style={{ fontStyle: 'italic', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-body)' }}>Add contact name…</span>}
+                  <span style={{ fontSize: 10, color: 'var(--ink-4)', opacity: 0.7 }}>✎</span>
+                </div>
+              )}
               {detailSkill?.contact.company && (
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)', marginTop: 2 }}>{detailSkill.contact.company}</div>
               )}
             </div>
-            <button onClick={() => setDetailSession(null)} style={{ background: 'none', border: 'none', color: 'var(--ink-4)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 2 }}>×</button>
+            <button onClick={() => { setDetailSession(null); setEditingName(false) }} style={{ background: 'none', border: 'none', color: 'var(--ink-4)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 2 }}>×</button>
           </div>
 
           <div style={{ padding: V.sp5, display: 'flex', flexDirection: 'column', gap: V.sp5 }}>

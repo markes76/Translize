@@ -29,6 +29,9 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const [docCount, setDocCount] = useState(0)
   const [liveSentiment, setLiveSentiment] = useState<{ score: number; label: string }>({ score: 0, label: 'neutral' })
   const sentimentIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [contactName, setContactName] = useState(sessionName ?? '')
+  const [editingContact, setEditingContact] = useState(false)
+  const [contactDraft, setContactDraft] = useState('')
   const useNlm = mode === 'notebook' || mode === 'both'
   const isActive = isCapturing || status === 'connecting' || status === 'connected'
 
@@ -53,6 +56,13 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const addActivity = (msg: string, type: string) => setActivity(p => [{ id: actId++, message: msg, type, timestamp: Date.now() }, ...p].slice(0, 30))
 
   const handleStop = async () => { await stopSession(); onEndCall(segments) }
+
+  const saveContact = async (name: string) => {
+    const trimmed = name.trim()
+    setContactName(trimmed)
+    setEditingContact(false)
+    await window.translize.session.update(sessionId, { name: trimmed || undefined })
+  }
 
   const statusColor = status === 'connected' ? 'var(--positive)' : status === 'error' ? 'var(--negative)' : 'var(--warning)'
   const statusLabel = status === 'idle' ? 'Ready' : status === 'connecting' ? 'Connecting' : status === 'connected' ? 'Live' : status === 'error' ? 'Error' : 'Offline'
@@ -79,6 +89,30 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
           <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{statusLabel}</span>
         </div>
         {statusDetail && status !== 'connected' && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>— {statusDetail}</span>}
+
+        {/* Contact name — editable inline */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {editingContact ? (
+            <input
+              autoFocus
+              value={contactDraft}
+              onChange={e => setContactDraft(e.target.value)}
+              onBlur={() => saveContact(contactDraft)}
+              onKeyDown={e => { if (e.key === 'Enter') saveContact(contactDraft); if (e.key === 'Escape') setEditingContact(false) }}
+              placeholder="Contact name..."
+              style={{ padding: '3px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-xs)', outline: 'none', width: 160 }}
+            />
+          ) : contactName ? (
+            <button onClick={() => { setContactDraft(contactName); setEditingContact(true) }} style={{ padding: '3px 10px', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-full)', color: 'var(--ink-2)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+              {contactName} ✎
+            </button>
+          ) : (
+            <button onClick={() => { setContactDraft(''); setEditingContact(true) }} style={{ padding: '3px 10px', background: 'transparent', border: '1px dashed var(--border-1)', borderRadius: 'var(--radius-full)', color: 'var(--ink-4)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+              + Add contact name
+            </button>
+          )}
+        </div>
+
         <div style={{ flex: 1 }} />
         {isActive && (
           <div style={{ display: 'flex', gap: 8 }}>
