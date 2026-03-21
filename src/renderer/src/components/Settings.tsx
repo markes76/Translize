@@ -51,7 +51,7 @@ export default function Settings({ onBack }: Props): React.ReactElement {
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
           {/* OpenAI */}
-          <IntegrationCard title="OpenAI" desc="Transcription, analysis, and AI features" status={openaiOk ? 'connected' : 'disconnected'} icon="🤖">
+          <IntegrationCard title="OpenAI" desc="Transcription, analysis, and AI features" status={openaiOk ? 'connected' : 'disconnected'} icon="AI">
             <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3 }}>
               <input value={openaiKey} readOnly style={inputStyle} placeholder="Not configured" />
               <StatusDot ok={openaiOk} />
@@ -103,11 +103,11 @@ export default function Settings({ onBack }: Props): React.ReactElement {
           </IntegrationCard>
 
           {/* Coming Soon */}
-          <IntegrationCard title="CRM Integration" desc="Sync contacts and call data to your CRM" status="coming soon" icon="📊">
+          <IntegrationCard title="CRM Integration" desc="Sync contacts and call data to your CRM" status="coming soon" icon="CRM">
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)', fontStyle: 'italic' }}>Coming in a future update.</p>
           </IntegrationCard>
 
-          <IntegrationCard title="Firebase" desc="Cloud storage and real-time sync" status="coming soon" icon="🔥">
+          <IntegrationCard title="Firebase" desc="Cloud storage and real-time sync" status="coming soon" icon="DB">
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)', fontStyle: 'italic' }}>Coming in a future update.</p>
           </IntegrationCard>
 
@@ -124,7 +124,7 @@ function IntegrationCard({ title, desc, status, icon, children }: {
   return (
     <div style={{ marginBottom: V.sp6, padding: V.sp6, background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-lg)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: V.sp4, marginBottom: V.sp4 }}>
-        <span style={{ fontSize: 24 }}>{icon}</span>
+        <span style={{ fontSize: icon.length <= 2 ? 20 : 11, fontWeight: 700, color: 'var(--ink-3)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)' }}>{icon}</span>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3 }}>
             <span style={{ fontSize: 'var(--text-base)', fontWeight: 700 }}>{title}</span>

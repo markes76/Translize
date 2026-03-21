@@ -223,11 +223,11 @@ function Card({ s, h, onH, onClick, onDel }: {
       </div>
 
       {/* Delete */}
-      <button onClick={onDel} style={{
+      <button type="button" title="Delete session" aria-label="Delete session" onClick={onDel} style={{
         opacity: h ? 1 : 0, transition: 'opacity 0.15s', background: 'none', border: 'none',
         padding: V.sp2, color: 'var(--ink-4)', cursor: 'pointer', fontSize: 14, borderRadius: 'var(--radius-sm)'
       }}>
-        🗑
+        ×
       </button>
     </div>
   )

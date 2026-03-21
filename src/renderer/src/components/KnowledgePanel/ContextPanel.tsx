@@ -186,7 +186,6 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
       {/* Header */}
       <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-raised)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>📋</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)' }}>Live Context</span>
           {isCapturing && (
             <span style={{
@@ -206,7 +205,9 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
         {cards.length === 0 && (
           <div style={{ textAlign: 'center', padding: '24px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.12 }}>{isCapturing ? '👂' : '📋'}</div>
+            {isCapturing && (
+              <div style={{ fontSize: 13, letterSpacing: '0.25em', color: 'var(--ink-4)', marginBottom: 16, fontWeight: 600 }}>...</div>
+            )}
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-1)', marginBottom: 8 }}>{isCapturing ? 'Listening for questions...' : 'Ready for your call'}</div>
             <div style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
               {isCapturing ? 'When someone asks a question, the answer from your documents or NotebookLM will appear here as a card.' : 'Start a call and ask questions. Answers from your documents and NotebookLM will appear here in real-time.'}
@@ -307,14 +308,18 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
       </div>
 
       {/* Ask a Question input -- always visible at bottom */}
-      <AskInput sessionId={sessionId} notebookId={notebookId} onResult={(card) => { addCard(card); log(`Manual Q: "${card.question}"`, 'info') }} onLog={log} />
+      <AskInput sessionId={sessionId} notebookId={notebookId}
+        onAddCard={(card) => { addCard(card); log(`Searching: "${card.question}"`, 'search') }}
+        onUpdateCard={(id, updates) => { updateCard(id, updates); if (updates.status === 'answered') log('Answer found', 'success') }}
+        onLog={log} />
     </div>
   )
 }
 
-function AskInput({ sessionId, notebookId, onResult, onLog }: {
+function AskInput({ sessionId, notebookId, onAddCard, onUpdateCard, onLog }: {
   sessionId: string | null; notebookId?: string
-  onResult: (card: QACard) => void; onLog: (msg: string, type: string) => void
+  onAddCard: (card: QACard) => void; onUpdateCard: (id: string, updates: Partial<QACard>) => void
+  onLog: (msg: string, type: string) => void
 }): React.ReactElement {
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -326,54 +331,37 @@ function AskInput({ sessionId, notebookId, onResult, onLog }: {
     onLog(`Searching all sources: "${q}"`, 'search')
 
     const cardId = `ask-${Date.now()}`
-    onResult({ id: cardId, question: q, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'searching' })
+    onAddCard({ id: cardId, question: q, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'searching' })
 
-    // Search ALL sources in parallel
     const results: Array<{ source: string; provenance: DataProvenance; answer: string }> = []
-
     const searches = []
 
-    // Local
     if (sessionId) {
-      searches.push(
-        window.translize.knowledge.smartQuery(sessionId, q).then(r => {
-          if (r) { results.push({ source: r.source, provenance: 'local', answer: r.answer }); onLog('Found in local docs', 'success') }
-        }).catch(() => {})
-      )
+      searches.push(window.translize.knowledge.smartQuery(sessionId, q).then(r => {
+        if (r) { results.push({ source: r.source, provenance: 'local', answer: r.answer }); onLog('Found in local docs', 'success') }
+      }).catch(() => {}))
     }
-
-    // NotebookLM
     if (notebookId) {
-      searches.push(
-        window.translize.notebooklm.ask(notebookId, q).then((nr: any) => {
-          const ans = nr?.value?.answer ?? nr?.answer ?? null
-          if (ans && !ans.includes('do not contain') && !ans.includes("I'm sorry")) {
-            const condensed = ans.split('\n').filter((l: string) => l.trim() && !l.startsWith('#')).slice(0, 3).join(' ').replace(/\*\*/g, '').replace(/\[[\d,\s]+\]/g, '').trim()
-            results.push({ source: 'NotebookLM', provenance: 'nlm', answer: condensed.slice(0, 500) })
-            onLog('Found in NotebookLM', 'success')
-          }
-        }).catch(() => { onLog('NLM search failed', 'error') })
-      )
-    }
-
-    // Tavily (web)
-    searches.push(
-      window.translize.tavily.search(q).then(r => {
-        if (!r.error && r.results.length > 0) {
-          const webAnswer = r.answer ?? r.results[0].content
-          results.push({ source: 'Web (Tavily)', provenance: 'web', answer: webAnswer.slice(0, 500) })
-          onLog('Found on the web', 'success')
+      searches.push(window.translize.notebooklm.ask(notebookId, q).then((nr: any) => {
+        const ans = nr?.value?.answer ?? nr?.answer ?? null
+        if (ans && !ans.includes('do not contain') && !ans.includes("I'm sorry")) {
+          const condensed = ans.split('\n').filter((l: string) => l.trim() && !l.startsWith('#')).slice(0, 3).join(' ').replace(/\*\*/g, '').replace(/\[[\d,\s]+\]/g, '').trim()
+          results.push({ source: 'NotebookLM', provenance: 'nlm', answer: condensed.slice(0, 500) }); onLog('Found in NotebookLM', 'success')
         }
-      }).catch(() => {})
-    )
+      }).catch(() => {}))
+    }
+    searches.push(window.translize.tavily.search(q).then(r => {
+      if (!r.error && r.results.length > 0) {
+        results.push({ source: 'Web (Tavily)', provenance: 'web', answer: (r.answer ?? r.results[0].content).slice(0, 500) }); onLog('Found on the web', 'success')
+      }
+    }).catch(() => {}))
 
     await Promise.allSettled(searches)
 
     if (results.length === 0) {
-      onResult({ id: cardId, question: q, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'unanswered' })
+      onUpdateCard(cardId, { status: 'unanswered' })
       onLog('No results from any source', 'info')
     } else {
-      // Synthesize answer from all sources using GPT
       try {
         const apiKey = await window.translize.keychain.get('openai-api-key')
         if (apiKey) {
@@ -381,12 +369,8 @@ function AskInput({ sessionId, notebookId, onResult, onLog }: {
           const resp = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 300,
-              messages: [
-                { role: 'system', content: 'Synthesize a clear, direct answer from these sources. Be concise (2-4 sentences). Mention which sources were most helpful.' },
-                { role: 'user', content: `Question: ${q}\n\nSources:\n${sourceSummary}` }
-              ]
+            body: JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 300,
+              messages: [{ role: 'system', content: 'Synthesize a clear, direct answer from these sources. Be concise (2-4 sentences). Mention which sources were most helpful.' }, { role: 'user', content: `Question: ${q}\n\nSources:\n${sourceSummary}` }]
             })
           })
           if (resp.ok) {
@@ -394,18 +378,14 @@ function AskInput({ sessionId, notebookId, onResult, onLog }: {
             const synthesized = data.choices[0]?.message?.content?.trim()
             if (synthesized) {
               const sourceNames = results.map(r => r.source).join(' + ')
-              onResult({ id: cardId, question: q, answer: synthesized, source: sourceNames, provenance: results.some(r => r.provenance === 'nlm') ? 'synced' : results.some(r => r.provenance === 'web') ? 'web' : 'local', fromNlm: results.some(r => r.provenance === 'nlm'), timestamp: Date.now(), status: 'answered' })
-              onLog(`Synthesized answer from ${results.length} source${results.length !== 1 ? 's' : ''}`, 'success')
-              setSearching(false)
-              return
+              onUpdateCard(cardId, { answer: synthesized, source: sourceNames, provenance: results.some(r => r.provenance === 'nlm') ? 'synced' : results.some(r => r.provenance === 'web') ? 'web' : 'local', fromNlm: results.some(r => r.provenance === 'nlm'), status: 'answered' })
+              setSearching(false); return
             }
           }
         }
       } catch {}
-
-      // Fallback: use the best single result
       const best = results[0]
-      onResult({ id: cardId, question: q, answer: best.answer, source: best.source, provenance: best.provenance, fromNlm: best.provenance === 'nlm', timestamp: Date.now(), status: 'answered' })
+      onUpdateCard(cardId, { answer: best.answer, source: best.source, provenance: best.provenance, fromNlm: best.provenance === 'nlm', status: 'answered' })
     }
     setSearching(false)
   }

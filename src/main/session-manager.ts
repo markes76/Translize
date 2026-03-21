@@ -198,6 +198,12 @@ export function setupSessionIpc(): void {
     return null
   })
 
+  ipcMain.handle('skill:delete', (_e, skillId: string) => {
+    const file = path.join(app.getPath('userData'), 'skills', `${skillId}.json`)
+    if (fs.existsSync(file)) { fs.unlinkSync(file); return { ok: true } }
+    return { ok: false, error: 'Skill not found' }
+  })
+
   ipcMain.handle('session:pick-documents', async () => {
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return []

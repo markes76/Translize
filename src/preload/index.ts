@@ -95,7 +95,8 @@ const api = {
       ipcRenderer.invoke('skill:save', skill),
     load: (skillId: string): Promise<unknown> => ipcRenderer.invoke('skill:load', skillId),
     list: (): Promise<unknown[]> => ipcRenderer.invoke('skill:list'),
-    find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName)
+    find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName),
+    delete: (skillId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('skill:delete', skillId)
   },
   tavily: {
     search: (query: string): Promise<{ results: Array<{ title: string; content: string; url: string; score: number }>; answer?: string; error?: string }> =>

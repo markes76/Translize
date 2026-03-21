@@ -11,8 +11,8 @@ type NlmState = 'unknown' | 'not-connected' | 'setting-up' | 'connected'
 interface Notebook { id: string; title: string; source_count: number; updated_at: string }
 
 const MODES: { value: Mode; label: string; desc: string; icon: string }[] = [
-  { value: 'local', label: 'Local Only', desc: 'Fast search from your documents', icon: '📄' },
-  { value: 'both', label: 'Local + NLM', desc: 'Local speed + NotebookLM insights', icon: '📋' },
+  { value: 'local', label: 'Local Only', desc: 'Fast search from your documents', icon: '—' },
+  { value: 'both', label: 'Local + NLM', desc: 'Local speed + NotebookLM insights', icon: '' },
   { value: 'notebook', label: 'NotebookLM', desc: 'All context from NotebookLM', icon: '📓' }
 ]
 
@@ -132,9 +132,9 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {[
                 { code: 'auto', label: 'Auto-detect' },
-                { code: 'en', label: '🇬🇧 English' }, { code: 'he', label: '🇮🇱 Hebrew' },
-                { code: 'es', label: '🇪🇸 Spanish' }, { code: 'fr', label: '🇫🇷 French' },
-                { code: 'de', label: '🇩🇪 German' }, { code: 'ar', label: '🇸🇦 Arabic' }
+                { code: 'en', label: 'English' }, { code: 'he', label: 'Hebrew' },
+                { code: 'es', label: 'Spanish' }, { code: 'fr', label: 'French' },
+                { code: 'de', label: 'German' }, { code: 'ar', label: 'Arabic' }
               ].map(l => {
                 const sel = callLanguages.includes(l.code) || (callLanguages.length === 0 && l.code === 'auto')
                 return (
@@ -162,7 +162,16 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
                   border: `2px solid ${mode === m.value ? 'var(--primary)' : 'var(--border-1)'}`,
                   borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center' as const, transition: 'all 0.15s'
                 }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{m.icon}</div>
+                  <div style={{
+                    fontSize: m.icon ? 22 : 12,
+                    marginBottom: 8,
+                    minHeight: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--ink-3)',
+                    fontWeight: m.value === 'local' ? 500 : undefined
+                  }}>{m.icon || null}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>{m.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--ink-2)', lineHeight: 1.4 }}>{m.desc}</div>
                 </button>

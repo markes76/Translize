@@ -35,6 +35,7 @@ export default function CallDashboard({ speakers, callDuration, segmentCount, sy
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
           Speakers ({speakers.length})
         </div>
+        <AddSpeakerInput onAdd={(name) => onRenameSpeaker(`manual-${Date.now()}`, name)} />
         {speakers.map(sp => (
           <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: sp.color, flexShrink: 0 }} />
@@ -113,6 +114,25 @@ function Stat({ label, value }: { label: string; value: string }): React.ReactEl
     <div style={{ padding: '8px 10px', background: 'var(--surface-raised)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-1)' }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink-1)' }}>{value}</div>
       <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+    </div>
+  )
+}
+
+function AddSpeakerInput({ onAdd }: { onAdd: (name: string) => void }): React.ReactElement {
+  const [name, setName] = useState('')
+  const [show, setShow] = useState(false)
+  if (!show) return (
+    <button onClick={() => setShow(true)} style={{ width: '100%', padding: '4px 8px', marginBottom: 6, background: 'none', border: '1px dashed var(--border-1)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', color: 'var(--primary)', cursor: 'pointer', fontWeight: 500 }}>
+      + Add participant
+    </button>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Name..." autoFocus
+        onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { onAdd(name.trim()); setName(''); setShow(false) } }}
+        style={{ flex: 1, padding: '4px 8px', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', color: 'var(--ink-1)', outline: 'none' }} />
+      <button onClick={() => { if (name.trim()) { onAdd(name.trim()); setName(''); setShow(false) } }}
+        style={{ padding: '4px 8px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>+</button>
     </div>
   )
 }

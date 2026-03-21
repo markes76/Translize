@@ -222,6 +222,13 @@ export default function RelationshipsDashboard({ onBack }: Props): React.ReactEl
                     </div>
                   )}
 
+                  <button onClick={async (e) => { e.stopPropagation(); if (confirm(`Delete contact ${s.contact.name}?`)) { await window.translize.skill.delete(s.skillId); setSkills(p => p.filter(x => x.skillId !== s.skillId)) } }}
+                    style={{ background: 'none', border: 'none', color: 'var(--ink-4)', cursor: 'pointer', fontSize: 14, padding: V.sp2, borderRadius: 'var(--radius-sm)', opacity: 0.5 }}
+                    title="Delete contact"
+                    onMouseEnter={e => { (e.target as HTMLElement).style.opacity = '1'; (e.target as HTMLElement).style.color = 'var(--negative)' }}
+                    onMouseLeave={e => { (e.target as HTMLElement).style.opacity = '0.5'; (e.target as HTMLElement).style.color = 'var(--ink-4)' }}>
+                    ×
+                  </button>
                   <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-4)' }}>→</span>
                 </div>
               )
