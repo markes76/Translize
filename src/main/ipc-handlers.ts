@@ -1,4 +1,4 @@
-import { app, ipcMain, shell, systemPreferences } from 'electron'
+import { app, ipcMain, shell, systemPreferences, nativeTheme } from 'electron'
 import { keychainGet, keychainSet, keychainDelete } from './keychain'
 import { readConfig, writeConfig } from './config'
 import fs from 'fs'
@@ -36,6 +36,21 @@ export function setupIpcHandlers(): void {
       await shell.openExternal(url)
     }
   })
+
+  // Open userData folder in Finder
+  ipcMain.handle('app:open-data-folder', async () => {
+    await shell.openPath(app.getPath('userData'))
+  })
+
+  // Get userData path
+  ipcMain.handle('app:get-data-path', () => app.getPath('userData'))
+
+  // Theme override (independent of macOS system preference)
+  ipcMain.handle('app:set-theme', (_e, theme: 'light' | 'dark' | 'system') => {
+    nativeTheme.themeSource = theme
+    return { ok: true }
+  })
+  ipcMain.handle('app:get-theme', () => nativeTheme.themeSource)
 
   // Reset app -- clears all user data and restarts
   ipcMain.handle('app:reset', async () => {

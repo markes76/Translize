@@ -22,7 +22,11 @@ const api = {
     openUrl: (url: string): Promise<void> => ipcRenderer.invoke('shell:open-url', url)
   },
   app: {
-    reset: (): Promise<void> => ipcRenderer.invoke('app:reset')
+    reset: (): Promise<void> => ipcRenderer.invoke('app:reset'),
+    openDataFolder: (): Promise<void> => ipcRenderer.invoke('app:open-data-folder'),
+    getDataPath: (): Promise<string> => ipcRenderer.invoke('app:get-data-path'),
+    setTheme: (theme: 'light' | 'dark' | 'system'): Promise<{ ok: boolean }> => ipcRenderer.invoke('app:set-theme', theme),
+    getTheme: (): Promise<'light' | 'dark' | 'system'> => ipcRenderer.invoke('app:get-theme')
   },
   audio: {
     start: (): Promise<{ ok?: boolean; error?: string }> => ipcRenderer.invoke('audio:start'),
