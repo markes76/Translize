@@ -171,6 +171,11 @@ export default function App(): React.ReactElement {
           setActiveSession(null)
           setState('home')
         }}
+        onNavigate={(dest) => {
+          if (dest === 'relationships') setState('relationships')
+          else if (dest === 'settings') setState('settings')
+          else if (dest === 'home') { setActiveSession(null); setState('home') }
+        }}
       />
     )
   }

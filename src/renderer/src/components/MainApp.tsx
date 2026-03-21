@@ -11,13 +11,14 @@ import { checkLiveSentiment } from '../services/sentiment-engine'
 interface Props {
   sessionId: string; sessionName?: string; notebookId?: string; mode: string
   onEndCall: (segments: TranscriptSegment[]) => void; onBack: () => void
+  onNavigate: (destination: string) => void
 }
 
 interface ActivityItem { id: number; message: string; type: string; timestamp: number }
 
 let actId = 0
 
-export default function MainApp({ sessionId, sessionName, notebookId, mode, onEndCall, onBack }: Props): React.ReactElement {
+export default function MainApp({ sessionId, sessionName, notebookId, mode, onEndCall, onBack, onNavigate }: Props): React.ReactElement {
   const {
     status, statusDetail, segments, speakers, isCapturing,
     sysChunkCount, micChunkCount, audioError, callDuration,
@@ -64,7 +65,12 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
       )}
 
       {/* Top nav */}
-      <TopNav activeTab="call" sessionName={sessionName} isCapturing={isCapturing} onNavigate={(tab) => { if (tab === 'home') onBack() }} />
+      <TopNav activeTab="call" sessionName={sessionName} isCapturing={isCapturing} onNavigate={(tab) => {
+        if (tab === 'home') onBack()
+        else if (tab === 'insights') onNavigate('relationships')
+        else if (tab === 'notebooklm') window.translize.shell.openUrl('https://notebooklm.google.com')
+        else if (tab === 'settings') onNavigate('settings')
+      }} />
 
       {/* Controls bar */}
       <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>

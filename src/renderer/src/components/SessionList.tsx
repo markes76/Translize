@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import TopNav from './TopNav'
 
 interface Session {
   id: string; name?: string; docPaths: string[]; notebookId?: string
@@ -35,6 +36,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped')
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set())
   const [skills, setSkills] = useState<Array<{ skillId: string; contact: { name: string; company?: string }; relationshipSummary: string; sentimentTrajectory: Array<{ score: number }> }>>([])
+  const [groupingSession, setGroupingSession] = useState<string | null>(null)
 
   useEffect(() => {
     window.translize.session.list().then((l: unknown) => setSessions(l as Session[]))
@@ -80,34 +82,20 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
-      {/* Header */}
-      <header style={{ padding: `${V.sp6} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid var(--border-subtle)` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="Translize" style={{ height: 36, width: 'auto' }} />
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.03em' }}>
-            Translize
-          </h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: V.sp4 }}>
-          <button onClick={onRelationships} style={{
-            padding: `${V.sp2} ${V.sp4}`, background: 'var(--surface-2)', border: '1px solid var(--border-1)',
-            borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600,
-            color: 'var(--ink-2)', cursor: 'pointer'
-          }}>
-            Relationships
-          </button>
-          <button onClick={onSettings} style={{
-            padding: `${V.sp2} ${V.sp3}`, background: 'var(--surface-2)', border: '1px solid var(--border-1)',
-            borderRadius: 'var(--radius-full)', fontSize: 14, color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1
-          }}>
-            ⚙
-          </button>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: nlmOk ? 'var(--positive)' : 'var(--ink-4)' }} />
-          <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: nlmOk ? 'var(--positive)' : 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {nlmOk ? 'NLM' : 'Offline'}
-          </span>
-        </div>
-      </header>
+      {/* Top Navigation */}
+      <TopNav activeTab="home" isCapturing={false} onNavigate={(tab) => {
+        if (tab === 'insights') onRelationships()
+        else if (tab === 'notebooklm') window.translize.shell.openUrl('https://notebooklm.google.com')
+        else if (tab === 'settings') onSettings()
+      }} />
+
+      {/* Sub-header with NLM status */}
+      <div style={{ padding: `${V.sp2} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: V.sp2 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: nlmOk ? 'var(--positive)' : 'var(--ink-5)' }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: nlmOk ? 'var(--positive)' : 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {nlmOk ? 'NLM Connected' : 'NLM Offline'}
+        </span>
+      </div>
 
       {/* Content */}
       <main style={{ flex: 1, overflow: 'auto', padding: `${V.sp8} ${V.sp8}` }}>
@@ -191,25 +179,66 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
               {ungrouped.length > 0 && (
                 <Section title="Ungrouped">
                   {ungrouped.map(s => (
-                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: V.sp2 }}>
-                      <div style={{ flex: 1 }}>
-                        <Card s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
+                    <div key={s.id} style={{ position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: V.sp2 }}>
+                        <div style={{ flex: 1 }}>
+                          <Card s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); setGroupingSession(groupingSession === s.id ? null : s.id) }} title="Assign to group" style={{
+                          background: groupingSession === s.id ? 'var(--primary-subtle)' : 'none',
+                          border: `1px solid ${groupingSession === s.id ? 'var(--primary)' : 'var(--border-1)'}`,
+                          borderRadius: 'var(--radius-sm)',
+                          padding: `${V.sp2} ${V.sp3}`, fontSize: 10, fontWeight: 600,
+                          color: groupingSession === s.id ? 'var(--primary)' : 'var(--ink-3)',
+                          cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap'
+                        }}>
+                          Group
+                        </button>
                       </div>
-                      <button onClick={async (e) => {
-                        e.stopPropagation()
-                        const name = prompt('Enter a name for this session (e.g. contact name):')
-                        if (name?.trim()) {
-                          await window.translize.session.update(s.id, { name: name.trim() })
-                          const updated = await window.translize.session.list() as Session[]
-                          setSessions(updated)
-                        }
-                      }} title="Assign to group" style={{
-                        background: 'none', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)',
-                        padding: `${V.sp2} ${V.sp3}`, fontSize: 10, fontWeight: 600, color: 'var(--ink-3)',
-                        cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap'
-                      }}>
-                        Group
-                      </button>
+                      {/* Group assignment dropdown */}
+                      {groupingSession === s.id && (
+                        <div style={{
+                          position: 'absolute', right: 0, top: '100%', zIndex: 20, marginTop: 4, width: 240,
+                          background: 'var(--surface-raised)', border: '1px solid var(--border-1)',
+                          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', padding: V.sp2, overflow: 'hidden'
+                        }}>
+                          <div style={{ padding: `${V.sp2} ${V.sp3}`, fontSize: 10, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Assign to group
+                          </div>
+                          {/* Existing groups */}
+                          {Object.keys(contactGroups).map(name => (
+                            <button key={name} onClick={async () => {
+                              await window.translize.session.update(s.id, { name })
+                              setSessions(await window.translize.session.list() as Session[])
+                              setGroupingSession(null)
+                            }} style={{
+                              width: '100%', textAlign: 'left', padding: `${V.sp2} ${V.sp3}`,
+                              background: 'none', border: 'none', fontSize: 'var(--text-xs)',
+                              color: 'var(--ink-1)', cursor: 'pointer', borderRadius: 'var(--radius-sm)'
+                            }}
+                            onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--surface-2)' }}
+                            onMouseLeave={e => { (e.target as HTMLElement).style.background = 'none' }}>
+                              {name}
+                            </button>
+                          ))}
+                          {Object.keys(contactGroups).length > 0 && <div style={{ height: 1, background: 'var(--border-1)', margin: `${V.sp2} 0` }} />}
+                          {/* Create new */}
+                          <button onClick={async () => {
+                            const name = prompt('New group name (e.g. contact name):')
+                            if (name?.trim()) {
+                              await window.translize.session.update(s.id, { name: name.trim() })
+                              setSessions(await window.translize.session.list() as Session[])
+                            }
+                            setGroupingSession(null)
+                          }} style={{
+                            width: '100%', textAlign: 'left', padding: `${V.sp2} ${V.sp3}`,
+                            background: 'none', border: 'none', fontSize: 'var(--text-xs)',
+                            color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, borderRadius: 'var(--radius-sm)'
+                          }}>
+                            + Create new group
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </Section>
