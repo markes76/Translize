@@ -83,7 +83,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
       {/* Header */}
       <header style={{ padding: `${V.sp6} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid var(--border-subtle)` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="Translize" style={{ height: 28, width: 'auto' }} />
+          <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="Translize" style={{ height: 36, width: 'auto' }} />
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.03em' }}>
             Translize
           </h1>

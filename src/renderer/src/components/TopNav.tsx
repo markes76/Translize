@@ -19,7 +19,7 @@ export default function TopNav({ activeTab, sessionName, isCapturing, onNavigate
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: V.sp2, minWidth: 160 }}>
-        <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="" style={{ height: 22 }} />
+        <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="" style={{ height: 30 }} />
         <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.02em' }}>
           Translize
         </span>
