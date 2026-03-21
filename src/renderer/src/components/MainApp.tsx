@@ -58,7 +58,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const statusLabel = status === 'idle' ? 'Ready' : status === 'connecting' ? 'Connecting' : status === 'connected' ? 'Live' : status === 'error' ? 'Error' : 'Offline'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: 'var(--surface-1)' }}>
       {/* Sentiment color bar */}
       {isActive && (
         <div style={{ height: 3, width: '100%', flexShrink: 0, background: liveSentiment.score > 0.2 ? 'var(--positive)' : liveSentiment.score < -0.2 ? 'var(--negative)' : 'var(--warning)', transition: 'background 1s' }} />

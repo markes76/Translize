@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import TopNav from './TopNav'
 
 interface Session {
@@ -39,6 +39,35 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   const [groupingSession, setGroupingSession] = useState<string | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
   const [showNewGroupInput, setShowNewGroupInput] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close group dropdown when clicking outside
+  useEffect(() => {
+    if (!groupingSession) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setGroupingSession(null)
+        setShowNewGroupInput(false)
+        setNewGroupName('')
+      }
+    }
+    // Delay to avoid closing immediately on the click that opened it
+    const timer = setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0)
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handleClickOutside) }
+  }, [groupingSession])
+
+  // Reset new group input state whenever the dropdown target changes
+  const openGroupDropdown = useCallback((sessionId: string) => {
+    if (groupingSession === sessionId) {
+      setGroupingSession(null)
+      setShowNewGroupInput(false)
+      setNewGroupName('')
+    } else {
+      setGroupingSession(sessionId)
+      setShowNewGroupInput(false)
+      setNewGroupName('')
+    }
+  }, [groupingSession])
 
   useEffect(() => {
     window.translize.session.list().then((l: unknown) => setSessions(l as Session[]))
@@ -83,7 +112,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: 'var(--surface-1)' }}>
       {/* NLM status bar */}
       <div style={{ padding: `${V.sp2} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: V.sp2 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: nlmOk ? 'var(--positive)' : 'var(--ink-5)' }} />
@@ -179,7 +208,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                         <div style={{ flex: 1 }}>
                           <Card s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); setGroupingSession(groupingSession === s.id ? null : s.id) }} title="Assign to group" style={{
+                        <button onClick={(e) => { e.stopPropagation(); openGroupDropdown(s.id) }} title="Assign to group" style={{
                           background: groupingSession === s.id ? 'var(--primary-subtle)' : 'none',
                           border: `1px solid ${groupingSession === s.id ? 'var(--primary)' : 'var(--border-1)'}`,
                           borderRadius: 'var(--radius-sm)',
@@ -192,7 +221,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                       </div>
                       {/* Group assignment dropdown */}
                       {groupingSession === s.id && (
-                        <div style={{
+                        <div ref={dropdownRef} className="dropdown-menu" style={{
                           position: 'absolute', right: 0, top: '100%', zIndex: 20, marginTop: 4, width: 240,
                           background: 'var(--surface-raised)', border: '1px solid var(--border-1)',
                           borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', padding: V.sp2, overflow: 'hidden'
@@ -203,9 +232,13 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                           {/* Existing groups */}
                           {Object.keys(contactGroups).map(name => (
                             <button key={name} onClick={async () => {
-                              await window.translize.session.update(s.id, { name })
-                              setSessions(await window.translize.session.list() as Session[])
-                              setGroupingSession(null)
+                              try {
+                                await window.translize.session.update(s.id, { name })
+                                setSessions(await window.translize.session.list() as Session[])
+                              } catch (err) {
+                                console.error('[SessionList] Failed to assign group:', err)
+                              }
+                              setGroupingSession(null); setShowNewGroupInput(false); setNewGroupName('')
                             }} style={{
                               width: '100%', textAlign: 'left', padding: `${V.sp2} ${V.sp3}`,
                               background: 'none', border: 'none', fontSize: 'var(--text-xs)',
@@ -232,19 +265,32 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                                 placeholder="Group name..."
                                 onKeyDown={async e => {
                                   if (e.key === 'Enter' && newGroupName.trim()) {
-                                    await window.translize.session.update(s.id, { name: newGroupName.trim() })
-                                    setSessions(await window.translize.session.list() as Session[])
+                                    try {
+                                      await window.translize.session.update(s.id, { name: newGroupName.trim() })
+                                      const updatedSessions = await window.translize.session.list() as Session[]
+                                      setSessions(updatedSessions)
+                                      window.translize.skill.list().then((l: unknown) => setSkills(l as any[]))
+                                    } catch (err) {
+                                      console.error('[SessionList] Failed to create group:', err)
+                                    }
                                     setNewGroupName(''); setShowNewGroupInput(false); setGroupingSession(null)
-                                  } else if (e.key === 'Escape') { setShowNewGroupInput(false); setNewGroupName('') }
+                                  } else if (e.key === 'Escape') { setShowNewGroupInput(false); setNewGroupName(''); setGroupingSession(null) }
                                 }}
                                 style={{ flex: 1, padding: '4px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', color: 'var(--ink-1)', outline: 'none' }} />
                               <button onClick={async () => {
                                 if (newGroupName.trim()) {
-                                  await window.translize.session.update(s.id, { name: newGroupName.trim() })
-                                  setSessions(await window.translize.session.list() as Session[])
+                                  try {
+                                    await window.translize.session.update(s.id, { name: newGroupName.trim() })
+                                    const updatedSessions = await window.translize.session.list() as Session[]
+                                    setSessions(updatedSessions)
+                                    // Also refresh skills in case grouping affects contact resolution
+                                    window.translize.skill.list().then((l: unknown) => setSkills(l as any[]))
+                                  } catch (err) {
+                                    console.error('[SessionList] Failed to create group:', err)
+                                  }
                                   setNewGroupName(''); setShowNewGroupInput(false); setGroupingSession(null)
                                 }
-                              }} style={{ padding: '4px 8px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                              }} style={{ padding: '4px 8px', background: newGroupName.trim() ? 'var(--primary)' : 'var(--surface-3)', color: newGroupName.trim() ? 'white' : 'var(--ink-4)', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 10, fontWeight: 600, cursor: newGroupName.trim() ? 'pointer' : 'default' }}>
                                 Save
                               </button>
                             </div>

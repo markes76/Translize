@@ -54,8 +54,19 @@ export default function App(): React.ReactElement {
 
   if (state === 'loading') {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 'var(--radius-md)',
+          background: 'var(--primary-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            width: 20, height: 20, borderRadius: '50%',
+            border: '2px solid var(--primary)', borderTopColor: 'transparent',
+            animation: 'spin 0.8s linear infinite'
+          }} />
+        </div>
+        <div style={{ color: 'var(--ink-3)', fontSize: 'var(--text-sm)', fontWeight: 500 }}>Loading Translize...</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }
@@ -76,7 +87,7 @@ export default function App(): React.ReactElement {
         <button
           onClick={() => window.translize.shell.openUrl('https://support.apple.com/en-us/111900')}
           style={{
-            marginTop: 8, padding: '10px 20px', background: 'var(--primary)', color: '#fff',
+            marginTop: 8, padding: '10px 20px', background: 'var(--primary)', color: 'white',
             border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 500, cursor: 'pointer'
           }}
         >
@@ -105,7 +116,7 @@ export default function App(): React.ReactElement {
     else if (tab === 'settings') setState('settings')
   }
 
-  const activeTab = state === 'home' || state === 'setup' ? 'home' : state === 'relationships' ? 'insights' : state === 'settings' ? 'settings' : 'call'
+  const activeTab: 'home' | 'call' | 'insights' | 'notebooklm' | 'settings' = state === 'home' || state === 'setup' ? 'home' : state === 'relationships' ? 'insights' : state === 'settings' ? 'settings' : 'call'
 
   // Wrap all app screens with global TopNav
   const renderContent = () => {
@@ -143,13 +154,13 @@ export default function App(): React.ReactElement {
       )
     }
 
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div></div>
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><div style={{ color: 'var(--ink-3)', fontSize: 'var(--text-sm)' }}>Loading...</div></div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
-      <TopNav activeTab={activeTab as any} isCapturing={state === 'call' && !!activeSession} onNavigate={handleNav} />
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <TopNav activeTab={activeTab} isCapturing={state === 'call' && !!activeSession} onNavigate={handleNav} />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {renderContent()}
       </div>
     </div>
