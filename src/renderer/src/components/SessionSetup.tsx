@@ -78,7 +78,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
   }
 
   const S = {
-    page: { display: 'flex' as const, flexDirection: 'column' as const, height: '100vh', background: 'var(--surface-1)', paddingTop: 28 },
+    page: { display: 'flex' as const, flexDirection: 'column' as const, flex: 1, background: 'var(--surface-1)' },
     header: { padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 16, borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)' },
     backBtn: { background: 'none', border: 'none', color: 'var(--primary)', fontSize: 13, fontWeight: 600 as const, cursor: 'pointer' as const },
     title: { fontSize: 18, fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.02em' },

@@ -58,19 +58,11 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const statusLabel = status === 'idle' ? 'Ready' : status === 'connecting' ? 'Connecting' : status === 'connected' ? 'Live' : status === 'error' ? 'Error' : 'Offline'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
       {/* Sentiment color bar */}
       {isActive && (
         <div style={{ height: 3, width: '100%', flexShrink: 0, background: liveSentiment.score > 0.2 ? 'var(--positive)' : liveSentiment.score < -0.2 ? 'var(--negative)' : 'var(--warning)', transition: 'background 1s' }} />
       )}
-
-      {/* Top nav */}
-      <TopNav activeTab="call" sessionName={sessionName} isCapturing={isCapturing} onNavigate={(tab) => {
-        if (tab === 'home') onBack()
-        else if (tab === 'insights') onNavigate('relationships')
-        else if (tab === 'notebooklm') window.translize.shell.openUrl('https://notebooklm.google.com')
-        else if (tab === 'settings') onNavigate('settings')
-      }} />
 
       {/* Controls bar */}
       <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>

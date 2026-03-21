@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import OnboardingFlow from './components/Onboarding/OnboardingFlow'
+import TopNav from './components/TopNav'
 import SessionList from './components/SessionList'
 import SessionSetup from './components/SessionSetup'
 import MainApp from './components/MainApp'
@@ -96,93 +97,61 @@ export default function App(): React.ReactElement {
     )
   }
 
-  if (state === 'relationships') {
-    return <RelationshipsDashboard onBack={() => setState('home')} />
+  // Global navigation handler
+  const handleNav = (tab: string) => {
+    if (tab === 'home') { setActiveSession(null); setState('home') }
+    else if (tab === 'insights') setState('relationships')
+    else if (tab === 'notebooklm') window.translize.shell.openUrl('https://notebooklm.google.com')
+    else if (tab === 'settings') setState('settings')
   }
 
-  if (state === 'settings') {
-    return <Settings onBack={() => setState('home')} />
-  }
+  const activeTab = state === 'home' || state === 'setup' ? 'home' : state === 'relationships' ? 'insights' : state === 'settings' ? 'settings' : 'call'
 
-  if (state === 'home') {
-    return (
-      <SessionList
-        onNewCall={(prefillName?: string) => {
-          setPrefill(prefillName ? { name: prefillName } : undefined)
-          setState('setup')
-        }}
-        onRelationships={() => setState('relationships')}
-        onSettings={() => setState('settings')}
-        onSelectSession={(session) => {
-          setPrefill({
-            name: session.name,
-            docPaths: session.docPaths,
-            notebookId: session.notebookId,
-            mode: session.mode
-          })
-          setState('setup')
-        }}
-      />
-    )
-  }
+  // Wrap all app screens with global TopNav
+  const renderContent = () => {
+    if (state === 'relationships') return <RelationshipsDashboard onBack={() => setState('home')} />
+    if (state === 'settings') return <Settings onBack={() => setState('home')} />
 
-  if (state === 'setup') {
-    return (
-      <SessionSetup
-        prefill={prefill as any}
-        onBack={() => setState('home')}
-        onStart={(session) => {
-          setActiveSession(session)
-          setState('call')
-        }}
-      />
-    )
-  }
+    if (state === 'home') {
+      return (
+        <SessionList
+          onNewCall={(prefillName?: string) => { setPrefill(prefillName ? { name: prefillName } : undefined); setState('setup') }}
+          onRelationships={() => setState('relationships')}
+          onSettings={() => setState('settings')}
+          onSelectSession={(session) => { setPrefill({ name: session.name, docPaths: session.docPaths, notebookId: session.notebookId, mode: session.mode }); setState('setup') }}
+        />
+      )
+    }
 
-  if (state === 'summary' && activeSession) {
-    return (
-      <PostCallSummary
-        segments={completedSegments}
-        sessionId={activeSession.id}
-        notebookId={activeSession.notebookId}
-        mode={activeSession.mode}
-        onBack={() => {
-          setActiveSession(null)
-          setState('home')
-        }}
-        onNewCall={() => {
-          setActiveSession(null)
-          setPrefill(undefined)
-          setState('setup')
-        }}
-      />
-    )
-  }
+    if (state === 'setup') {
+      return <SessionSetup prefill={prefill as any} onBack={() => setState('home')} onStart={(session) => { setActiveSession(session); setState('call') }} />
+    }
 
-  if (state === 'call' && activeSession) {
-    return (
-      <MainApp
-        sessionId={activeSession.id}
-        sessionName={activeSession.name}
-        notebookId={activeSession.notebookId}
-        mode={activeSession.mode}
-        onEndCall={handleCallEnd}
-        onBack={() => {
-          setActiveSession(null)
-          setState('home')
-        }}
-        onNavigate={(dest) => {
-          if (dest === 'relationships') setState('relationships')
-          else if (dest === 'settings') setState('settings')
-          else if (dest === 'home') { setActiveSession(null); setState('home') }
-        }}
-      />
-    )
+    if (state === 'summary' && activeSession) {
+      return (
+        <PostCallSummary segments={completedSegments} sessionId={activeSession.id} notebookId={activeSession.notebookId} mode={activeSession.mode}
+          onBack={() => { setActiveSession(null); setState('home') }}
+          onNewCall={() => { setActiveSession(null); setPrefill(undefined); setState('setup') }} />
+      )
+    }
+
+    if (state === 'call' && activeSession) {
+      return (
+        <MainApp sessionId={activeSession.id} sessionName={activeSession.name} notebookId={activeSession.notebookId} mode={activeSession.mode}
+          onEndCall={handleCallEnd} onBack={() => { setActiveSession(null); setState('home') }}
+          onNavigate={handleNav} />
+      )
+    }
+
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div></div>
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-      <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
+      <TopNav activeTab={activeTab as any} isCapturing={state === 'call' && !!activeSession} onNavigate={handleNav} />
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {renderContent()}
+      </div>
     </div>
   )
 }

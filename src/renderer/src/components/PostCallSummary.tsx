@@ -88,7 +88,7 @@ export default function PostCallSummary({ segments, sessionId, notebookId, mode,
   const quickTags = ['Follow-up', 'Decision made', 'Escalation', 'At risk', 'Positive']
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
       {/* Header */}
       <header style={{ padding: `${V.sp3} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: V.sp4 }}>

@@ -37,6 +37,8 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set())
   const [skills, setSkills] = useState<Array<{ skillId: string; contact: { name: string; company?: string }; relationshipSummary: string; sentimentTrajectory: Array<{ score: number }> }>>([])
   const [groupingSession, setGroupingSession] = useState<string | null>(null)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false)
 
   useEffect(() => {
     window.translize.session.list().then((l: unknown) => setSessions(l as Session[]))
@@ -81,15 +83,8 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
-      {/* Top Navigation */}
-      <TopNav activeTab="home" isCapturing={false} onNavigate={(tab) => {
-        if (tab === 'insights') onRelationships()
-        else if (tab === 'notebooklm') window.translize.shell.openUrl('https://notebooklm.google.com')
-        else if (tab === 'settings') onSettings()
-      }} />
-
-      {/* Sub-header with NLM status */}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
+      {/* NLM status bar */}
       <div style={{ padding: `${V.sp2} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: V.sp2 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: nlmOk ? 'var(--positive)' : 'var(--ink-5)' }} />
         <span style={{ fontSize: 10, fontWeight: 600, color: nlmOk ? 'var(--positive)' : 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -223,20 +218,37 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                           ))}
                           {Object.keys(contactGroups).length > 0 && <div style={{ height: 1, background: 'var(--border-1)', margin: `${V.sp2} 0` }} />}
                           {/* Create new */}
-                          <button onClick={async () => {
-                            const name = prompt('New group name (e.g. contact name):')
-                            if (name?.trim()) {
-                              await window.translize.session.update(s.id, { name: name.trim() })
-                              setSessions(await window.translize.session.list() as Session[])
-                            }
-                            setGroupingSession(null)
-                          }} style={{
-                            width: '100%', textAlign: 'left', padding: `${V.sp2} ${V.sp3}`,
-                            background: 'none', border: 'none', fontSize: 'var(--text-xs)',
-                            color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, borderRadius: 'var(--radius-sm)'
-                          }}>
-                            + Create new group
-                          </button>
+                          {!showNewGroupInput ? (
+                            <button onClick={() => setShowNewGroupInput(true)} style={{
+                              width: '100%', textAlign: 'left', padding: `${V.sp2} ${V.sp3}`,
+                              background: 'none', border: 'none', fontSize: 'var(--text-xs)',
+                              color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, borderRadius: 'var(--radius-sm)'
+                            }}>
+                              + Create new group
+                            </button>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 4, padding: `${V.sp2} ${V.sp3}` }}>
+                              <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} autoFocus
+                                placeholder="Group name..."
+                                onKeyDown={async e => {
+                                  if (e.key === 'Enter' && newGroupName.trim()) {
+                                    await window.translize.session.update(s.id, { name: newGroupName.trim() })
+                                    setSessions(await window.translize.session.list() as Session[])
+                                    setNewGroupName(''); setShowNewGroupInput(false); setGroupingSession(null)
+                                  } else if (e.key === 'Escape') { setShowNewGroupInput(false); setNewGroupName('') }
+                                }}
+                                style={{ flex: 1, padding: '4px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', color: 'var(--ink-1)', outline: 'none' }} />
+                              <button onClick={async () => {
+                                if (newGroupName.trim()) {
+                                  await window.translize.session.update(s.id, { name: newGroupName.trim() })
+                                  setSessions(await window.translize.session.list() as Session[])
+                                  setNewGroupName(''); setShowNewGroupInput(false); setGroupingSession(null)
+                                }
+                              }} style={{ padding: '4px 8px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                Save
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

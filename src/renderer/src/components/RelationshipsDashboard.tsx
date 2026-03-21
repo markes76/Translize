@@ -99,7 +99,7 @@ export default function RelationshipsDashboard({ onBack }: Props): React.ReactEl
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28, position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)', position: 'relative' }}>
 
       {/* Add Contact Modal */}
       {showAddModal && (
@@ -244,7 +244,7 @@ function ContactDeepDive({ skill, onBack }: { skill: Skill; onBack: () => void }
   const lastSentiment = skill.sentimentTrajectory.length > 0 ? skill.sentimentTrajectory[skill.sentimentTrajectory.length - 1] : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: 'var(--surface-1)' }}>
       <header style={{ padding: `${V.sp4} ${V.sp8}`, display: 'flex', alignItems: 'center', gap: V.sp4, borderBottom: '1px solid var(--border-subtle)' }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>← All Contacts</button>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700 }}>{skill.contact.name}</h1>
