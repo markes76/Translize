@@ -307,6 +307,20 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
         })}
       </div>
 
+      {/* NotebookLM section */}
+      {notebookId && (
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-1)', background: 'var(--surface-1)', flexShrink: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>NotebookLM Insights</div>
+          <button onClick={() => window.translize.shell.openUrl('https://notebooklm.google.com')} style={{
+            width: '100%', padding: '8px 12px', background: 'var(--purple-subtle)', color: 'var(--purple)',
+            border: '1px solid var(--purple)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)',
+            fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.15s'
+          }}>
+            Open NotebookLM
+          </button>
+        </div>
+      )}
+
       {/* Ask a Question input -- always visible at bottom */}
       <AskInput sessionId={sessionId} notebookId={notebookId}
         onAddCard={(card) => { addCard(card); log(`Searching: "${card.question}"`, 'search') }}

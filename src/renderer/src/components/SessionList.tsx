@@ -32,10 +32,14 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
   const [nlmOk, setNlmOk] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped')
+  const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set())
+  const [skills, setSkills] = useState<Array<{ skillId: string; contact: { name: string; company?: string }; relationshipSummary: string; sentimentTrajectory: Array<{ score: number }> }>>([])
 
   useEffect(() => {
     window.translize.session.list().then((l: unknown) => setSessions(l as Session[]))
     window.translize.notebooklm.status().then((s: any) => setNlmOk(!!s.authenticated)).catch(() => {})
+    window.translize.skill.list().then((l: unknown) => setSkills(l as any[]))
   }, [])
 
   const del = async (e: React.MouseEvent, id: string) => {
@@ -45,23 +49,45 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
     setSessions(p => p.filter(s => s.id !== id))
   }
 
-  // Group sessions by date
-  const named = sessions.filter(s => s.name)
-  const unnamed = sessions.filter(s => !s.name)
-  const groups: Record<string, Session[]> = {}
-  unnamed.forEach(s => {
+  const toggleContact = (key: string) => {
+    setExpandedContacts(p => { const n = new Set(p); if (n.has(key)) n.delete(key); else n.add(key); return n })
+  }
+
+  // Group by contact (for grouped view)
+  const contactGroups: Record<string, { sessions: Session[]; skill?: typeof skills[0] }> = {}
+  const ungrouped: Session[] = []
+  sessions.forEach(s => {
+    const contactName = s.name || s.calls.find(c => c.contactName)?.contactName
+    if (contactName) {
+      const key = contactName
+      if (!contactGroups[key]) {
+        const skill = skills.find(sk => sk.contact.name.toLowerCase().includes(contactName.toLowerCase().split(' ')[0]))
+        contactGroups[key] = { sessions: [], skill }
+      }
+      contactGroups[key].sessions.push(s)
+    } else {
+      ungrouped.push(s)
+    }
+  })
+
+  // Flat view groups
+  const dateGroups: Record<string, Session[]> = {}
+  sessions.forEach(s => {
     const g = dateGroup(s.createdAt)
-    if (!groups[g]) groups[g] = []
-    groups[g].push(s)
+    if (!dateGroups[g]) dateGroups[g] = []
+    dateGroups[g].push(s)
   })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
       {/* Header */}
       <header style={{ padding: `${V.sp6} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid var(--border-subtle)` }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.03em' }}>
-          Translize
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src={new URL('../assets/translize-logo.png', import.meta.url).href} alt="Translize" style={{ height: 28, width: 'auto' }} />
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.03em' }}>
+            Translize
+          </h1>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: V.sp4 }}>
           <button onClick={onRelationships} style={{
             padding: `${V.sp2} ${V.sp4}`, background: 'var(--surface-2)', border: '1px solid var(--border-1)',
@@ -86,30 +112,92 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
       {/* Content */}
       <main style={{ flex: 1, overflow: 'auto', padding: `${V.sp8} ${V.sp8}` }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          {/* CTA */}
-          <button onClick={onNewCall} style={{
-            width: '100%', padding: `${V.sp5} ${V.sp6}`, marginBottom: V.sp12,
-            background: 'var(--primary)', color: 'var(--primary-ink)',
-            border: 'none', borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--text-base)', fontWeight: 700, letterSpacing: '-0.01em',
-            boxShadow: 'var(--shadow-md)', cursor: 'pointer', transition: 'all 0.2s'
-          }}>
-            + New Call
-          </button>
+          {/* CTA + View Toggle */}
+          <div style={{ display: 'flex', gap: V.sp3, marginBottom: V.sp8 }}>
+            <button onClick={onNewCall} style={{
+              flex: 1, padding: `${V.sp4} ${V.sp6}`,
+              background: 'var(--primary)', color: 'white',
+              border: 'none', borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--text-sm)', fontWeight: 700,
+              boxShadow: 'var(--shadow-md)', cursor: 'pointer'
+            }}>
+              + New Call
+            </button>
+            <div style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', overflow: 'hidden' }}>
+              <button onClick={() => setViewMode('grouped')} style={{
+                padding: `${V.sp2} ${V.sp4}`, border: 'none', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+                background: viewMode === 'grouped' ? 'var(--primary-subtle)' : 'transparent',
+                color: viewMode === 'grouped' ? 'var(--primary)' : 'var(--ink-3)'
+              }}>Grouped</button>
+              <button onClick={() => setViewMode('flat')} style={{
+                padding: `${V.sp2} ${V.sp4}`, border: 'none', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+                background: viewMode === 'flat' ? 'var(--primary-subtle)' : 'transparent',
+                color: viewMode === 'flat' ? 'var(--primary)' : 'var(--ink-3)'
+              }}>All Calls</button>
+            </div>
+          </div>
 
-          {/* Saved sessions */}
-          {named.length > 0 && (
-            <Section title="Saved Sessions">
-              {named.map(s => <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />)}
-            </Section>
+          {/* Grouped View */}
+          {viewMode === 'grouped' && (
+            <>
+              {Object.entries(contactGroups).map(([contactName, group]) => {
+                const isExpanded = expandedContacts.has(contactName)
+                const lastSentiment = group.skill?.sentimentTrajectory?.slice(-1)[0]?.score
+                const summary = group.skill?.relationshipSummary?.slice(0, 80)
+                const company = group.skill?.contact?.company
+
+                return (
+                  <div key={contactName} style={{ marginBottom: V.sp4 }}>
+                    {/* Contact folder header */}
+                    <button onClick={() => toggleContact(contactName)} style={{
+                      width: '100%', textAlign: 'left', padding: `${V.sp4} ${V.sp5}`,
+                      background: 'var(--surface-raised)', border: '1px solid var(--border-1)',
+                      borderRadius: isExpanded ? 'var(--radius-md) var(--radius-md) 0 0' : 'var(--radius-md)',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: V.sp3
+                    }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: lastSentiment != null ? (lastSentiment > 0.2 ? 'var(--positive)' : lastSentiment < -0.2 ? 'var(--negative)' : 'var(--warning)') : 'var(--ink-5)' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: V.sp2 }}>
+                          <span style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--ink-1)' }}>{contactName}</span>
+                          {company && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{company}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: V.sp3, fontSize: 'var(--text-xs)', color: 'var(--ink-4)', marginTop: 2 }}>
+                          <span>{group.sessions.length} call{group.sessions.length !== 1 ? 's' : ''}</span>
+                          {summary && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}...</span>}
+                        </div>
+                      </div>
+                    </button>
+                    {/* Expanded: show sessions */}
+                    {isExpanded && (
+                      <div style={{ borderLeft: '1px solid var(--border-1)', borderRight: '1px solid var(--border-1)', borderBottom: '1px solid var(--border-1)', borderRadius: '0 0 var(--radius-md) var(--radius-md)', padding: V.sp3 }}>
+                        {group.sessions.map(s => (
+                          <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {ungrouped.length > 0 && (
+                <Section title="Ungrouped">
+                  {ungrouped.map(s => <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />)}
+                </Section>
+              )}
+            </>
           )}
 
-          {/* Date-grouped recent calls */}
-          {Object.entries(groups).map(([group, items]) => (
-            <Section key={group} title={group}>
-              {items.map(s => <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />)}
-            </Section>
-          ))}
+          {/* Flat View */}
+          {viewMode === 'flat' && (
+            <>
+              {Object.entries(dateGroups).map(([group, items]) => (
+                <Section key={group} title={group}>
+                  {items.map(s => <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />)}
+                </Section>
+              ))}
+            </>
+          )}
 
           {/* Empty */}
           {sessions.length === 0 && (
