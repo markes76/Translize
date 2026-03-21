@@ -7,7 +7,7 @@ interface Session {
   createdAt: string; updatedAt: string
 }
 
-interface Props { onNewCall: () => void; onRelationships: () => void; onSelectSession: (session: Session) => void }
+interface Props { onNewCall: () => void; onRelationships: () => void; onSettings: () => void; onSelectSession: (session: Session) => void }
 
 function formatFullDate(iso: string): string {
   const d = new Date(iso)
@@ -27,7 +27,7 @@ function dateGroup(iso: string): string {
 
 const MODE_LABEL: Record<string, string> = { local: 'Local', notebook: 'NLM', both: 'Local + NLM' }
 
-export default function SessionList({ onNewCall, onRelationships, onSelectSession }: Props): React.ReactElement {
+export default function SessionList({ onNewCall, onRelationships, onSettings, onSelectSession }: Props): React.ReactElement {
   const [sessions, setSessions] = useState<Session[]>([])
   const [nlmOk, setNlmOk] = useState(false)
   const [showReset, setShowReset] = useState(false)
@@ -69,6 +69,12 @@ export default function SessionList({ onNewCall, onRelationships, onSelectSessio
             color: 'var(--ink-2)', cursor: 'pointer'
           }}>
             Relationships
+          </button>
+          <button onClick={onSettings} style={{
+            padding: `${V.sp2} ${V.sp3}`, background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+            borderRadius: 'var(--radius-full)', fontSize: 14, color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1
+          }}>
+            ⚙
           </button>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: nlmOk ? 'var(--positive)' : 'var(--ink-4)' }} />
           <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: nlmOk ? 'var(--positive)' : 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>

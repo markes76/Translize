@@ -22,7 +22,7 @@ function formatDuration(seconds: number): string {
 }
 
 const TYPE_COLORS: Record<string, string> = { info: 'var(--ink-3)', search: 'var(--primary)', nlm: 'var(--purple)', success: 'var(--positive)', error: 'var(--negative)' }
-const TYPE_ICONS: Record<string, string> = { info: '·', search: '⌕', nlm: '◈', success: '✓', error: '✗' }
+const TYPE_ICONS: Record<string, string> = { info: 'ℹ', search: '⌕', nlm: '◈', success: '✓', error: '✗' }
 
 export default function CallDashboard({ speakers, callDuration, segmentCount, sysChunkCount, micChunkCount, docCount, notebookId, activity, onRenameSpeaker }: Props): React.ReactElement {
   const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null)
@@ -68,8 +68,8 @@ export default function CallDashboard({ speakers, callDuration, segmentCount, sy
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Stat label="Duration" value={formatDuration(callDuration)} />
           <Stat label="Segments" value={String(segmentCount)} />
-          <Stat label="SYS" value={String(sysChunkCount)} />
-          <Stat label="MIC" value={String(micChunkCount)} />
+          <BarMeter label="SYS" value={sysChunkCount} />
+          <BarMeter label="MIC" value={micChunkCount} />
         </div>
       </div>
 
@@ -112,6 +112,21 @@ function Stat({ label, value }: { label: string; value: string }): React.ReactEl
   return (
     <div style={{ padding: '8px 10px', background: 'var(--surface-raised)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-1)' }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink-1)' }}>{value}</div>
+      <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+    </div>
+  )
+}
+
+function BarMeter({ label, value }: { label: string; value: number }): React.ReactElement {
+  const capped = Math.min(value, 1000)
+  const barWidth = Math.max(4, (capped / 1000) * 60)
+  return (
+    <div style={{ padding: '8px 10px', background: 'var(--surface-raised)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <div style={{ width: 60, height: 6, borderRadius: 3, background: 'var(--surface-3)', overflow: 'hidden' }}>
+          <div style={{ width: barWidth, height: '100%', borderRadius: 3, background: 'var(--primary)', transition: 'width 0.3s' }} />
+        </div>
+      </div>
       <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
     </div>
   )

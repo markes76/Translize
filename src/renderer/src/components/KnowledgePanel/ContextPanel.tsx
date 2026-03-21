@@ -181,12 +181,20 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
   const handleDismiss = (id: string) => setCards(p => p.filter(c => c.id !== id))
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--positive); } 50% { opacity: 0.6; box-shadow: 0 0 0 4px transparent; } }`}</style>
       {/* Header */}
       <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-raised)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>📋</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)' }}>Q&A Cheat Sheet</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)' }}>Live Context</span>
+          {isCapturing && (
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', background: 'var(--positive)',
+              animation: 'pulse-dot 1.5s ease-in-out infinite',
+              boxShadow: '0 0 0 0 var(--positive)'
+            }} />
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
           {status.documentCount > 0 && <span style={{ padding: '2px 8px', background: 'var(--primary-subtle)', color: 'var(--primary)', borderRadius: 10, fontWeight: 600, fontSize: 10 }}>{status.documentCount} docs</span>}
@@ -197,7 +205,7 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
       {/* Cards */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
         {cards.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+          <div style={{ textAlign: 'center', padding: '24px' }}>
             <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.12 }}>{isCapturing ? '👂' : '📋'}</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-1)', marginBottom: 8 }}>{isCapturing ? 'Listening for questions...' : 'Ready for your call'}</div>
             <div style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
@@ -284,6 +292,9 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
                 {notebookId && card.answer && card.provenance === 'local' && (
                   <ActionBtn label="Sync to NLM" color="var(--purple)" bg="var(--purple-subtle)" onClick={() => handleAddToNlm(card)} />
                 )}
+                {card.answer && (
+                  <ActionBtn label="Pin" color="var(--ink-2)" bg="var(--surface-3)" onClick={() => console.log('Pinned card:', card.id)} />
+                )}
                 {card.status === 'unanswered' && (
                   <ActionBtn label="Follow-up" color="var(--warning)" bg="var(--warning-subtle)" onClick={() => handleFollowUp(card)} />
                 )}
@@ -293,6 +304,134 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
             </div>
           )
         })}
+      </div>
+
+      {/* Ask a Question input -- always visible at bottom */}
+      <AskInput sessionId={sessionId} notebookId={notebookId} onResult={(card) => { addCard(card); log(`Manual Q: "${card.question}"`, 'info') }} onLog={log} />
+    </div>
+  )
+}
+
+function AskInput({ sessionId, notebookId, onResult, onLog }: {
+  sessionId: string | null; notebookId?: string
+  onResult: (card: QACard) => void; onLog: (msg: string, type: string) => void
+}): React.ReactElement {
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!query.trim() || searching) return
+    const q = query.trim()
+    setQuery(''); setSearching(true)
+    onLog(`Searching all sources: "${q}"`, 'search')
+
+    const cardId = `ask-${Date.now()}`
+    onResult({ id: cardId, question: q, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'searching' })
+
+    // Search ALL sources in parallel
+    const results: Array<{ source: string; provenance: DataProvenance; answer: string }> = []
+
+    const searches = []
+
+    // Local
+    if (sessionId) {
+      searches.push(
+        window.translize.knowledge.smartQuery(sessionId, q).then(r => {
+          if (r) { results.push({ source: r.source, provenance: 'local', answer: r.answer }); onLog('Found in local docs', 'success') }
+        }).catch(() => {})
+      )
+    }
+
+    // NotebookLM
+    if (notebookId) {
+      searches.push(
+        window.translize.notebooklm.ask(notebookId, q).then((nr: any) => {
+          const ans = nr?.value?.answer ?? nr?.answer ?? null
+          if (ans && !ans.includes('do not contain') && !ans.includes("I'm sorry")) {
+            const condensed = ans.split('\n').filter((l: string) => l.trim() && !l.startsWith('#')).slice(0, 3).join(' ').replace(/\*\*/g, '').replace(/\[[\d,\s]+\]/g, '').trim()
+            results.push({ source: 'NotebookLM', provenance: 'nlm', answer: condensed.slice(0, 500) })
+            onLog('Found in NotebookLM', 'success')
+          }
+        }).catch(() => { onLog('NLM search failed', 'error') })
+      )
+    }
+
+    // Tavily (web)
+    searches.push(
+      window.translize.tavily.search(q).then(r => {
+        if (!r.error && r.results.length > 0) {
+          const webAnswer = r.answer ?? r.results[0].content
+          results.push({ source: 'Web (Tavily)', provenance: 'web', answer: webAnswer.slice(0, 500) })
+          onLog('Found on the web', 'success')
+        }
+      }).catch(() => {})
+    )
+
+    await Promise.allSettled(searches)
+
+    if (results.length === 0) {
+      onResult({ id: cardId, question: q, answer: null, source: '', provenance: 'local', fromNlm: false, timestamp: Date.now(), status: 'unanswered' })
+      onLog('No results from any source', 'info')
+    } else {
+      // Synthesize answer from all sources using GPT
+      try {
+        const apiKey = await window.translize.keychain.get('openai-api-key')
+        if (apiKey) {
+          const sourceSummary = results.map(r => `[${r.source}]: ${r.answer}`).join('\n\n')
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 300,
+              messages: [
+                { role: 'system', content: 'Synthesize a clear, direct answer from these sources. Be concise (2-4 sentences). Mention which sources were most helpful.' },
+                { role: 'user', content: `Question: ${q}\n\nSources:\n${sourceSummary}` }
+              ]
+            })
+          })
+          if (resp.ok) {
+            const data = await resp.json() as { choices: Array<{ message: { content: string } }> }
+            const synthesized = data.choices[0]?.message?.content?.trim()
+            if (synthesized) {
+              const sourceNames = results.map(r => r.source).join(' + ')
+              onResult({ id: cardId, question: q, answer: synthesized, source: sourceNames, provenance: results.some(r => r.provenance === 'nlm') ? 'synced' : results.some(r => r.provenance === 'web') ? 'web' : 'local', fromNlm: results.some(r => r.provenance === 'nlm'), timestamp: Date.now(), status: 'answered' })
+              onLog(`Synthesized answer from ${results.length} source${results.length !== 1 ? 's' : ''}`, 'success')
+              setSearching(false)
+              return
+            }
+          }
+        }
+      } catch {}
+
+      // Fallback: use the best single result
+      const best = results[0]
+      onResult({ id: cardId, question: q, answer: best.answer, source: best.source, provenance: best.provenance, fromNlm: best.provenance === 'nlm', timestamp: Date.now(), status: 'answered' })
+    }
+    setSearching(false)
+  }
+
+  return (
+    <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-1)', background: 'var(--surface-raised)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
+          placeholder={searching ? 'Searching all sources...' : 'Ask a question...'}
+          disabled={searching}
+          style={{
+            flex: 1, padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+            borderRadius: 'var(--radius-md)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)',
+            outline: 'none', opacity: searching ? 0.6 : 1
+          }}
+        />
+        <button onClick={handleSubmit} disabled={searching || !query.trim()} style={{
+          padding: '10px 16px', background: query.trim() && !searching ? 'var(--primary)' : 'var(--surface-3)',
+          color: query.trim() && !searching ? 'white' : 'var(--ink-4)',
+          border: 'none', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)',
+          fontWeight: 600, cursor: query.trim() && !searching ? 'pointer' : 'default', flexShrink: 0
+        }}>
+          {searching ? '...' : 'Ask'}
+        </button>
       </div>
     </div>
   )

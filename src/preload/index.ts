@@ -97,6 +97,14 @@ const api = {
     list: (): Promise<unknown[]> => ipcRenderer.invoke('skill:list'),
     find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName)
   },
+  tavily: {
+    search: (query: string): Promise<{ results: Array<{ title: string; content: string; url: string; score: number }>; answer?: string; error?: string }> =>
+      ipcRenderer.invoke('tavily:search', query),
+    testKey: (apiKey: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('tavily:test-key', apiKey),
+    setKey: (apiKey: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('tavily:set-key', apiKey),
+    removeKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('tavily:remove-key'),
+    status: (): Promise<{ configured: boolean; hasKey: boolean }> => ipcRenderer.invoke('tavily:status')
+  },
   notebooklm: {
     setup: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('notebooklm:setup'),
     onSetupProgress: (cb: (msg: string) => void): (() => void) => {

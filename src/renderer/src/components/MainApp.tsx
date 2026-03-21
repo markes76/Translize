@@ -76,9 +76,18 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--surface-1)', paddingTop: 28 }}>
       {/* Top Bar -- compact, integrated controls */}
       <div style={{
+        position: 'relative',
         padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 12,
         borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)', flexShrink: 0
       }}>
+        {/* Sentiment color bar */}
+        {isActive && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: 3,
+            background: liveSentiment.score > 0.2 ? 'var(--positive)' : liveSentiment.score < -0.2 ? 'var(--negative)' : '#f59e0b',
+            transition: 'background 0.5s'
+          }} />
+        )}
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>←</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {sessionName ?? 'Active Call'}
@@ -102,18 +111,12 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
 
         <div style={{ flex: 1 }} />
 
-        {/* Live sentiment indicator */}
+        {/* Live sentiment label */}
         {isActive && (
           <span style={{
-            display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px',
-            background: liveSentiment.score > 0.2 ? 'var(--positive-subtle)' : liveSentiment.score < -0.2 ? 'var(--negative-subtle)' : 'var(--surface-2)',
-            borderRadius: 12, fontSize: 10, fontWeight: 700,
+            fontSize: 10, fontWeight: 700,
             color: liveSentiment.score > 0.2 ? 'var(--positive)' : liveSentiment.score < -0.2 ? 'var(--negative)' : 'var(--ink-3)'
           }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: liveSentiment.score > 0.2 ? 'var(--positive)' : liveSentiment.score < -0.2 ? 'var(--negative)' : 'var(--warning)'
-            }} />
             {liveSentiment.label === 'positive' ? 'Positive' : liveSentiment.label === 'negative' ? 'Tense' : 'Neutral'}
           </span>
         )}
@@ -146,7 +149,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
       {/* 3-Column Layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left: Compact Transcript */}
-        <div style={{ width: 280, flexShrink: 0, position: 'relative' }}>
+        <div style={{ flex: 2, minWidth: 0, position: 'relative' }}>
           <Transcript segments={segments} isCapturing={isCapturing} />
         </div>
 

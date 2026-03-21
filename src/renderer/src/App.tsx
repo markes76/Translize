@@ -5,9 +5,10 @@ import SessionSetup from './components/SessionSetup'
 import MainApp from './components/MainApp'
 import PostCallSummary from './components/PostCallSummary'
 import RelationshipsDashboard from './components/RelationshipsDashboard'
+import Settings from './components/Settings'
 import type { TranscriptSegment } from './services/openai-realtime'
 
-type AppState = 'loading' | 'unsupported-os' | 'onboarding' | 'home' | 'setup' | 'call' | 'summary' | 'relationships'
+type AppState = 'loading' | 'unsupported-os' | 'onboarding' | 'home' | 'setup' | 'call' | 'summary' | 'relationships' | 'settings'
 
 interface ActiveSession {
   id: string
@@ -99,6 +100,10 @@ export default function App(): React.ReactElement {
     return <RelationshipsDashboard onBack={() => setState('home')} />
   }
 
+  if (state === 'settings') {
+    return <Settings onBack={() => setState('home')} />
+  }
+
   if (state === 'home') {
     return (
       <SessionList
@@ -107,6 +112,7 @@ export default function App(): React.ReactElement {
           setState('setup')
         }}
         onRelationships={() => setState('relationships')}
+        onSettings={() => setState('settings')}
         onSelectSession={(session) => {
           setPrefill({
             name: session.name,
