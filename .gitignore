@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+.DS_Store
+*.log
+.env
+.cursor/debug-*.log
+swift/AudioCapture/.build/
+resources/AudioCapture
+firebase-debug.log

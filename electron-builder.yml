@@ -1,0 +1,37 @@
+appId: com.translize.app
+productName: Translize
+copyright: Copyright © 2026 Translize
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**/*
+  - "!**/{.DS_Store,.git,.gitkeep,.gitignore,.npmignore}"
+
+extraResources:
+  - from: resources/AudioCapture
+    to: AudioCapture
+  - from: python
+    to: python
+
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  minimumSystemVersion: "13.0"
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  category: public.app-category.productivity
+
+dmg:
+  title: Translize
+  icon: build/icon.icns
+
+afterSign: scripts/notarize.js
+
+nsis:
+  oneClick: false
