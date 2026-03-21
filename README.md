@@ -1,5 +1,9 @@
 # Translize
 
+<p align="center">
+  <img src="Translize.png" alt="Translize" width="180" />
+</p>
+
 Real-time call intelligence platform. Transcribes live calls, surfaces relevant context from your knowledge base, analyzes sentiment, and builds relationship intelligence across every conversation.
 
 ## What It Does
