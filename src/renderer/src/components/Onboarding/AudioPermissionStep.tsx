@@ -33,7 +33,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '0 40px 40px', maxWidth: 560, margin: '0 auto', width: '100%' }}>
       <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Allow System Audio Capture</h2>
-      <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 16 }}>
+      <p style={{ color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 16 }}>
         To hear the other person on your calls, Translize captures system audio using
         Apple's ScreenCaptureKit.
       </p>
@@ -41,7 +41,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
       {/* Important callout — users get nervous about Screen Recording */}
       <div style={{
         padding: 14, background: 'rgba(37, 99, 235, 0.08)',
-        borderRadius: 'var(--radius)', border: '1px solid rgba(37, 99, 235, 0.2)',
+        borderRadius: 'var(--radius-md)', border: '1px solid rgba(37, 99, 235, 0.2)',
         marginBottom: 24
       }}>
         <p style={{ fontSize: 13, lineHeight: 1.5 }}>
@@ -52,14 +52,14 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
       </div>
 
       <div style={{
-        padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)',
-        marginBottom: 24, border: '1px solid var(--border)'
+        padding: 20, background: 'var(--surface-2)', borderRadius: 'var(--radius-lg)',
+        marginBottom: 24, border: '1px solid var(--border-1)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 32 }}>🔊</span>
           <div>
             <div style={{ fontWeight: 500, marginBottom: 4 }}>System Audio (via ScreenCaptureKit)</div>
-            <div style={{ fontSize: 13, color: status === 'granted' ? 'var(--success)' : status === 'denied' ? 'var(--error)' : 'var(--text-muted)' }}>
+            <div style={{ fontSize: 13, color: status === 'granted' ? 'var(--positive)' : status === 'denied' ? 'var(--negative)' : 'var(--ink-3)' }}>
               {status === 'checking' && 'Checking…'}
               {status === 'not-determined' && 'Permission not yet granted'}
               {status === 'granted' && '✓ Access granted'}
@@ -71,7 +71,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
 
       {status === 'denied' && (
         <div style={{
-          padding: 16, background: '#fef3c7', borderRadius: 'var(--radius)',
+          padding: 16, background: '#fef3c7', borderRadius: 'var(--radius-md)',
           marginBottom: 24, border: '1px solid #fbbf24'
         }}>
           <p style={{ fontSize: 13, color: '#92400e', lineHeight: 1.5, marginBottom: 10 }}>
@@ -85,7 +85,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
               style={{
                 padding: '6px 12px', fontSize: 12,
                 background: '#92400e', color: '#fff', border: 'none',
-                borderRadius: 'var(--radius)', cursor: 'pointer'
+                borderRadius: 'var(--radius-md)', cursor: 'pointer'
               }}
             >
               Open System Settings
@@ -95,7 +95,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
               style={{
                 padding: '6px 12px', fontSize: 12,
                 background: 'transparent', color: '#92400e',
-                border: '1px solid #fbbf24', borderRadius: 'var(--radius)', cursor: 'pointer'
+                border: '1px solid #fbbf24', borderRadius: 'var(--radius-md)', cursor: 'pointer'
               }}
             >
               Check Again
@@ -109,8 +109,8 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
           onClick={requestPermission}
           disabled={status === 'checking'}
           style={{
-            padding: '12px 0', background: 'var(--accent)', color: '#fff',
-            border: 'none', borderRadius: 'var(--radius)',
+            padding: '12px 0', background: 'var(--primary)', color: '#fff',
+            border: 'none', borderRadius: 'var(--radius-md)',
             fontWeight: 500, cursor: 'pointer', marginBottom: 12
           }}
         >
@@ -119,7 +119,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
       )}
 
       {status !== 'granted' && (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 16 }}>
           Without system audio, Translize can only transcribe what your microphone picks up.
           For best results during calls, we recommend enabling this.
         </p>
@@ -129,10 +129,10 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
         onClick={onNext}
         style={{
           marginTop: 'auto', padding: '12px 0',
-          background: status === 'granted' ? 'var(--accent)' : 'var(--bg-secondary)',
-          color: status === 'granted' ? '#fff' : 'var(--text)',
-          border: `1px solid ${status === 'granted' ? 'transparent' : 'var(--border)'}`,
-          borderRadius: 'var(--radius)', fontWeight: 600, cursor: 'pointer', fontSize: 15
+          background: status === 'granted' ? 'var(--primary)' : 'var(--surface-2)',
+          color: status === 'granted' ? '#fff' : 'var(--ink-1)',
+          border: `1px solid ${status === 'granted' ? 'transparent' : 'var(--border-1)'}`,
+          borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer', fontSize: 15
         }}
       >
         {status === 'granted' ? 'Continue →' : 'Continue Without System Audio →'}

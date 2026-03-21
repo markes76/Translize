@@ -56,7 +56,7 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '0 40px 40px', maxWidth: 560, margin: '0 auto', width: '100%' }}>
       <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Connect to OpenAI</h2>
-      <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
+      <p style={{ color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 32 }}>
         Translize uses OpenAI to transcribe your calls in real time. Your key is stored
         securely in your Mac's Keychain and sent only to OpenAI — never anywhere else.
       </p>
@@ -70,9 +70,9 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
             placeholder="sk-..."
             style={{
               width: '100%', padding: '10px 40px 10px 12px',
-              border: `1px solid ${testState === 'error' ? 'var(--error)' : testState === 'success' ? 'var(--success)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius)', background: 'var(--bg-secondary)',
-              color: 'var(--text)', fontSize: 14, outline: 'none'
+              border: `1px solid ${testState === 'error' ? 'var(--negative)' : testState === 'success' ? 'var(--positive)' : 'var(--border-1)'}`,
+              borderRadius: 'var(--radius-md)', background: 'var(--surface-2)',
+              color: 'var(--ink-1)', fontSize: 14, outline: 'none'
             }}
             onKeyDown={e => e.key === 'Enter' && testConnection()}
           />
@@ -80,7 +80,7 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
             onClick={() => setShowKey(!showKey)}
             style={{
               position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', color: 'var(--text-muted)',
+              background: 'none', border: 'none', color: 'var(--ink-3)',
               fontSize: 16, cursor: 'pointer', padding: 2
             }}
             aria-label={showKey ? 'Hide key' : 'Show key'}
@@ -91,9 +91,9 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
         <button
           onClick={handlePaste}
           style={{
-            padding: '10px 14px', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)', background: 'var(--bg-secondary)',
-            color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap'
+            padding: '10px 14px', border: '1px solid var(--border-1)',
+            borderRadius: 'var(--radius-md)', background: 'var(--surface-2)',
+            color: 'var(--ink-1)', cursor: 'pointer', whiteSpace: 'nowrap'
           }}
         >
           Paste
@@ -102,12 +102,12 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
 
       {/* Status messages */}
       {testState === 'error' && (
-        <p style={{ color: 'var(--error)', fontSize: 13, marginBottom: 12 }}>
+        <p style={{ color: 'var(--negative)', fontSize: 13, marginBottom: 12 }}>
           ✗ {errorMessage}
         </p>
       )}
       {testState === 'success' && (
-        <p style={{ color: 'var(--success)', fontSize: 13, marginBottom: 12 }}>
+        <p style={{ color: 'var(--positive)', fontSize: 13, marginBottom: 12 }}>
           ✓ Connected successfully. Key saved to Keychain.
         </p>
       )}
@@ -118,8 +118,8 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
           disabled={!key.trim() || testState === 'testing'}
           style={{
             flex: 1, padding: '11px 0',
-            background: testState === 'success' ? 'var(--success)' : 'var(--accent)',
-            color: '#fff', border: 'none', borderRadius: 'var(--radius)',
+            background: testState === 'success' ? 'var(--positive)' : 'var(--primary)',
+            color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
             fontWeight: 500, cursor: !key.trim() || testState === 'testing' ? 'not-allowed' : 'pointer',
             opacity: !key.trim() || testState === 'testing' ? 0.6 : 1
           }}
@@ -131,7 +131,7 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
       <button
         onClick={() => window.translize.shell.openUrl('https://platform.openai.com/api-keys')}
         style={{
-          background: 'none', border: 'none', color: 'var(--accent)',
+          background: 'none', border: 'none', color: 'var(--primary)',
           cursor: 'pointer', fontSize: 13, textAlign: 'left', marginBottom: 'auto'
         }}
       >
@@ -143,8 +143,8 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
         disabled={testState !== 'success'}
         style={{
           marginTop: 32, padding: '12px 0',
-          background: 'var(--accent)', color: '#fff',
-          border: 'none', borderRadius: 'var(--radius)',
+          background: 'var(--primary)', color: '#fff',
+          border: 'none', borderRadius: 'var(--radius-md)',
           fontWeight: 600, cursor: testState !== 'success' ? 'not-allowed' : 'pointer',
           opacity: testState !== 'success' ? 0.4 : 1, fontSize: 15
         }}

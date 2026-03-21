@@ -43,7 +43,7 @@ export default function LanguageStep({ onNext }: Props): React.ReactElement {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '0 40px 40px', maxWidth: 560, margin: '0 auto', width: '100%' }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>What languages do you speak?</h2>
-      <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
+      <p style={{ color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 24 }}>
         Select the languages used in your calls. This improves transcription accuracy.
         You can change this per call later.
       </p>
@@ -55,9 +55,9 @@ export default function LanguageStep({ onNext }: Props): React.ReactElement {
             <button key={lang.code} onClick={() => toggle(lang.code)} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 16px', borderRadius: 20,
-              background: isSelected ? 'var(--accent-light)' : 'var(--bg-card)',
-              border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-              color: isSelected ? 'var(--accent)' : 'var(--text)',
+              background: isSelected ? 'var(--primary-subtle)' : 'var(--surface-raised)',
+              border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border-1)'}`,
+              color: isSelected ? 'var(--primary)' : 'var(--ink-1)',
               fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s'
             }}>
               <span>{lang.flag}</span>
@@ -73,14 +73,14 @@ export default function LanguageStep({ onNext }: Props): React.ReactElement {
         onClick={() => setMixedMode(!mixedMode)}
         style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px',
-          background: mixedMode ? 'var(--accent-light)' : 'var(--bg-card)',
-          border: `1px solid ${mixedMode ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: 'var(--radius)', cursor: 'pointer', marginBottom: 32
+          background: mixedMode ? 'var(--primary-subtle)' : 'var(--surface-raised)',
+          border: `1px solid ${mixedMode ? 'var(--primary)' : 'var(--border-1)'}`,
+          borderRadius: 'var(--radius-md)', cursor: 'pointer', marginBottom: 32
         }}
       >
         <div style={{
           width: 36, height: 20, borderRadius: 10, padding: 2,
-          background: mixedMode ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s',
+          background: mixedMode ? 'var(--primary)' : 'var(--border-1)', transition: 'background 0.2s',
           display: 'flex', alignItems: isSelected ? 'center' : 'center'
         }}>
           <div style={{
@@ -90,10 +90,10 @@ export default function LanguageStep({ onNext }: Props): React.ReactElement {
           }} />
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>
             Mixed-language conversations
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 2 }}>
             Enable if speakers switch between languages mid-conversation
           </div>
         </div>
@@ -101,8 +101,8 @@ export default function LanguageStep({ onNext }: Props): React.ReactElement {
 
       <button onClick={handleContinue} style={{
         width: '100%', padding: '14px 20px', marginTop: 'auto',
-        background: 'linear-gradient(135deg, var(--accent), var(--accent-dark))',
-        color: 'white', border: 'none', borderRadius: 'var(--radius)',
+        background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+        color: 'white', border: 'none', borderRadius: 'var(--radius-md)',
         fontSize: 15, fontWeight: 600, cursor: 'pointer',
         boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
       }}>

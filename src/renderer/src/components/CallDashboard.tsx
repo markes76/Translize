@@ -13,6 +13,7 @@ interface Props {
   notebookId?: string
   activity: ActivityItem[]
   onRenameSpeaker: (id: string, name: string) => void
+  onAddSpeaker: (name: string) => void
 }
 
 function formatDuration(seconds: number): string {
@@ -24,7 +25,7 @@ function formatDuration(seconds: number): string {
 const TYPE_COLORS: Record<string, string> = { info: 'var(--ink-3)', search: 'var(--primary)', nlm: 'var(--purple)', success: 'var(--positive)', error: 'var(--negative)' }
 const TYPE_ICONS: Record<string, string> = { info: 'ℹ', search: '⌕', nlm: '◈', success: '✓', error: '✗' }
 
-export default function CallDashboard({ speakers, callDuration, segmentCount, sysChunkCount, micChunkCount, docCount, notebookId, activity, onRenameSpeaker }: Props): React.ReactElement {
+export default function CallDashboard({ speakers, callDuration, segmentCount, sysChunkCount, micChunkCount, docCount, notebookId, activity, onRenameSpeaker, onAddSpeaker }: Props): React.ReactElement {
   const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
 
@@ -35,7 +36,7 @@ export default function CallDashboard({ speakers, callDuration, segmentCount, sy
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
           Speakers ({speakers.length})
         </div>
-        <AddSpeakerInput onAdd={(name) => onRenameSpeaker(`manual-${Date.now()}`, name)} />
+        <AddSpeakerInput onAdd={onAddSpeaker} />
         {speakers.map(sp => (
           <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: sp.color, flexShrink: 0 }} />

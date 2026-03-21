@@ -26,6 +26,7 @@ export interface TranscriptionActions {
   startSession: () => Promise<void>
   stopSession: () => Promise<void>
   renameSpeaker: (id: string, name: string) => void
+  addSpeaker: (name: string) => void
 }
 
 const MIC_SAMPLE_RATE = 24000
@@ -79,6 +80,16 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
       }
       return s
     }))
+  }, [speakers])
+
+  const addSpeaker = useCallback((name: string) => {
+    const colorIdx = speakers.length % DEFAULT_COLORS.length
+    setSpeakers(prev => [...prev, {
+      id: `manual-${Date.now()}`,
+      name,
+      color: DEFAULT_COLORS[colorIdx],
+      isUser: false
+    }])
   }, [speakers])
 
   // Speaker detection: runs every ~15 seconds on recent "them" segments
@@ -218,5 +229,5 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     }
   }, [stopMicCapture])
 
-  return { status, statusDetail, segments, speakers, isCapturing, sysChunkCount, micChunkCount, audioError, callDuration, startSession, stopSession, renameSpeaker }
+  return { status, statusDetail, segments, speakers, isCapturing, sysChunkCount, micChunkCount, audioError, callDuration, startSession, stopSession, renameSpeaker, addSpeaker }
 }

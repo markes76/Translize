@@ -87,23 +87,23 @@ export default function AudioTestStep({ onComplete }: Props): React.ReactElement
     level: number; label: string; detected: boolean; icon: string
   }): React.ReactElement => (
     <div style={{
-      padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)',
-      border: `1px solid ${detected ? 'var(--success)' : 'var(--border)'}`,
+      padding: 20, background: 'var(--surface-2)', borderRadius: 'var(--radius-lg)',
+      border: `1px solid ${detected ? 'var(--positive)' : 'var(--border-1)'}`,
       transition: 'border-color 0.3s'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <span style={{ fontSize: 24 }}>{icon}</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 500, marginBottom: 2 }}>{label}</div>
-          <div style={{ fontSize: 12, color: detected ? 'var(--success)' : 'var(--text-muted)' }}>
+          <div style={{ fontSize: 12, color: detected ? 'var(--positive)' : 'var(--ink-3)' }}>
             {detected ? '✓ Signal detected' : 'Waiting for audio…'}
           </div>
         </div>
       </div>
-      <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ height: 8, background: 'var(--border-1)', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{
           height: '100%', borderRadius: 4,
-          background: detected ? 'var(--success)' : 'var(--accent)',
+          background: detected ? 'var(--positive)' : 'var(--primary)',
           width: `${level}%`,
           transition: 'width 0.05s linear'
         }} />
@@ -114,7 +114,7 @@ export default function AudioTestStep({ onComplete }: Props): React.ReactElement
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '0 40px 40px', maxWidth: 560, margin: '0 auto', width: '100%' }}>
       <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Let's Make Sure Everything Works</h2>
-      <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
+      <p style={{ color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 32 }}>
         Play some audio on your Mac and speak into your microphone. You should see both
         level meters move.
       </p>
@@ -125,13 +125,13 @@ export default function AudioTestStep({ onComplete }: Props): React.ReactElement
       </div>
 
       {error && (
-        <p style={{ fontSize: 13, color: 'var(--error)', marginBottom: 16 }}>{error}</p>
+        <p style={{ fontSize: 13, color: 'var(--negative)', marginBottom: 16 }}>{error}</p>
       )}
 
       {micDetected && systemDetected && (
         <div style={{
           padding: 14, background: 'rgba(22, 163, 74, 0.08)',
-          border: '1px solid rgba(22, 163, 74, 0.3)', borderRadius: 'var(--radius)',
+          border: '1px solid rgba(22, 163, 74, 0.3)', borderRadius: 'var(--radius-md)',
           textAlign: 'center', marginBottom: 24, fontSize: 14
         }}>
           🎉 You're all set! Both audio sources detected.
@@ -142,8 +142,8 @@ export default function AudioTestStep({ onComplete }: Props): React.ReactElement
         onClick={() => { stopTest(); onComplete() }}
         style={{
           marginTop: 'auto', padding: '12px 0',
-          background: 'var(--accent)', color: '#fff',
-          border: 'none', borderRadius: 'var(--radius)',
+          background: 'var(--primary)', color: '#fff',
+          border: 'none', borderRadius: 'var(--radius-md)',
           fontWeight: 600, cursor: 'pointer', fontSize: 15
         }}
       >

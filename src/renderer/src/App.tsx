@@ -54,7 +54,7 @@ export default function App(): React.ReactElement {
   if (state === 'loading') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>
+        <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div>
       </div>
     )
   }
@@ -67,7 +67,7 @@ export default function App(): React.ReactElement {
       }}>
         <div style={{ fontSize: 40 }}>⚠️</div>
         <h1 style={{ fontSize: 20, fontWeight: 600 }}>macOS 12.3 or Later Required</h1>
-        <p style={{ color: 'var(--text-muted)', maxWidth: 420 }}>
+        <p style={{ color: 'var(--ink-3)', maxWidth: 420 }}>
           Translize uses Apple's ScreenCaptureKit for system audio capture, which requires
           macOS 13.0 (Ventura) or later.
           {osRelease && ` You're running Darwin ${osRelease}.`}
@@ -75,8 +75,8 @@ export default function App(): React.ReactElement {
         <button
           onClick={() => window.translize.shell.openUrl('https://support.apple.com/en-us/111900')}
           style={{
-            marginTop: 8, padding: '10px 20px', background: 'var(--accent)', color: '#fff',
-            border: 'none', borderRadius: 'var(--radius)', fontWeight: 500, cursor: 'pointer'
+            marginTop: 8, padding: '10px 20px', background: 'var(--primary)', color: '#fff',
+            border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 500, cursor: 'pointer'
           }}
         >
           Update macOS
@@ -177,7 +177,7 @@ export default function App(): React.ReactElement {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-      <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>
+      <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading...</div>
     </div>
   )
 }

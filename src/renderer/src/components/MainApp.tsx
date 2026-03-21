@@ -28,7 +28,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const {
     status, statusDetail, segments, speakers, isCapturing,
     sysChunkCount, micChunkCount, audioError, callDuration,
-    startSession, stopSession, renameSpeaker
+    startSession, stopSession, renameSpeaker, addSpeaker
   } = useRealtimeTranscription()
 
   const [activity, setActivity] = useState<ActivityItem[]>([])
@@ -173,6 +173,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
           notebookId={useNlm ? notebookId : undefined}
           activity={activity}
           onRenameSpeaker={renameSpeaker}
+          onAddSpeaker={addSpeaker}
         />
       </div>
     </div>
