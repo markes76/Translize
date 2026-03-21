@@ -1,4 +1,5 @@
 import React from 'react'
+import logo from '../../assets/translize-logo.png'
 
 interface Props {
   onNext: () => void
@@ -10,7 +11,7 @@ export default function WelcomeStep({ onNext }: Props): React.ReactElement {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       flex: 1, padding: 60, textAlign: 'center', gap: 24
     }}>
-      <div style={{ fontSize: 64, lineHeight: 1 }}>🎙</div>
+      <img src={logo} alt="Translize" style={{ width: 96, height: 96, objectFit: 'contain' }} />
 
       <div style={{ maxWidth: 480 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12 }}>
