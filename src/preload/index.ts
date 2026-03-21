@@ -98,6 +98,21 @@ const api = {
     find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName),
     delete: (skillId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('skill:delete', skillId)
   },
+  audioBuffer: {
+    status: (): Promise<{ enabled: boolean; micChunks: number; sysChunks: number; durationMs: number }> => ipcRenderer.invoke('audio-buffer:status'),
+    stop: (): Promise<{ micFile: string | null; sysFile: string | null; durationMs: number }> => ipcRenderer.invoke('audio-buffer:stop'),
+    delete: (micFile: string | null, sysFile: string | null): Promise<{ ok: boolean }> => ipcRenderer.invoke('audio-buffer:delete', micFile, sysFile),
+    deepAnalyze: (micFile: string | null, sysFile: string | null, transcript: string): Promise<{ ok?: boolean; analysis?: unknown; error?: string }> => ipcRenderer.invoke('audio-buffer:deep-analyze', micFile, sysFile, transcript)
+  },
+  platformSkill: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('platform-skill:get'),
+    recordSave: (source: string): Promise<void> => ipcRenderer.invoke('platform-skill:record-save', source),
+    recordDismiss: (source: string, topic?: string): Promise<void> => ipcRenderer.invoke('platform-skill:record-dismiss', source, topic),
+    recordSentimentOverride: (original: number, corrected: number, context: string): Promise<void> => ipcRenderer.invoke('platform-skill:record-sentiment-override', original, corrected, context),
+    recordSummaryEdit: (desc: string): Promise<void> => ipcRenderer.invoke('platform-skill:record-summary-edit', desc),
+    recordEntityCorrection: (type: 'false-positive' | 'missed', entity: string): Promise<void> => ipcRenderer.invoke('platform-skill:record-entity-correction', type, entity),
+    incrementCalls: (): Promise<void> => ipcRenderer.invoke('platform-skill:increment-calls')
+  },
   gemini: {
     testKey: (apiKey: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('gemini:test-key', apiKey),
     setKey: (apiKey: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('gemini:set-key', apiKey),
