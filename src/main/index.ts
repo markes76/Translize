@@ -31,6 +31,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
+    icon: path.join(__dirname, '../../build/icon.icns'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

@@ -127,7 +127,7 @@ export async function queryVectors(sessionId: string, queryText: string, topK = 
   }))
 
   scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, topK).filter(r => r.score > 0.3)
+  return scored.slice(0, topK).filter(r => r.score > 0.15)
 }
 
 export function removeDocument(sessionId: string, filePath: string): void {

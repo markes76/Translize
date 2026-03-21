@@ -183,7 +183,7 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
       }}>
         {/* New Call CTA */}
         <div style={{ padding: `${V.sp4} ${V.sp4} ${V.sp3}` }}>
-          <button onClick={() => onNewCall()} style={{
+          <button onClick={() => onNewCall(selectedAccount ?? undefined)} style={{
             width: '100%', padding: `${V.sp3} ${V.sp4}`,
             background: 'var(--primary)', color: 'white', border: 'none',
             borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', fontWeight: 700,

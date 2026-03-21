@@ -140,7 +140,7 @@ export default function App(): React.ReactElement {
 
     if (state === 'summary' && activeSession) {
       return (
-        <PostCallSummary segments={completedSegments} sessionId={activeSession.id} notebookId={activeSession.notebookId} mode={activeSession.mode}
+        <PostCallSummary segments={completedSegments} sessionId={activeSession.id} sessionName={activeSession.name} notebookId={activeSession.notebookId} mode={activeSession.mode}
           onBack={() => { setActiveSession(null); setState('home') }}
           onNewCall={() => { setActiveSession(null); setPrefill(undefined); setState('setup') }} />
       )

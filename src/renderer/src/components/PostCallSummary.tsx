@@ -4,11 +4,14 @@ import { generateSummary, CallSummary } from '../services/summarizer'
 import { analyzeSentiment, SentimentAnalysis } from '../services/sentiment-engine'
 import { generateOrUpdateSkill } from '../services/skill-manager'
 
-interface Props { segments: TranscriptSegment[]; sessionId: string; notebookId?: string; mode: string; onBack: () => void; onNewCall: () => void }
+interface Props { segments: TranscriptSegment[]; sessionId: string; sessionName?: string; notebookId?: string; mode: string; onBack: () => void; onNewCall: () => void }
 
 const V = { sp1: '4px', sp2: '8px', sp3: '12px', sp4: '16px', sp5: '20px', sp6: '24px', sp8: '32px', sp10: '40px', sp12: '48px', sp16: '64px' }
 
-export default function PostCallSummary({ segments, sessionId, notebookId, mode, onBack, onNewCall }: Props): React.ReactElement {
+export default function PostCallSummary({ segments, sessionId, sessionName, notebookId, mode, onBack, onNewCall }: Props): React.ReactElement {
+  const [contactName, setContactName] = useState(sessionName ?? '')
+  const [editingContact, setEditingContact] = useState(false)
+  const [contactDraft, setContactDraft] = useState('')
   const [summary, setSummary] = useState<CallSummary | null>(null)
   const [sentiment, setSentiment] = useState<SentimentAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,6 +63,13 @@ export default function PostCallSummary({ segments, sessionId, notebookId, mode,
     })()
   }, [segments])
 
+  const saveContact = async (name: string) => {
+    const trimmed = name.trim()
+    setContactName(trimmed)
+    setEditingContact(false)
+    await window.translize.session.update(sessionId, { name: trimmed || undefined })
+  }
+
   const handleSave = async () => {
     if (!summary) return
     const call: Record<string, unknown> = {
@@ -90,14 +100,38 @@ export default function PostCallSummary({ segments, sessionId, notebookId, mode,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: 'var(--surface-1)' }}>
       {/* Header */}
-      <header style={{ padding: `${V.sp3} ${V.sp8}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: V.sp4 }}>
-          <button onClick={onBack} style={linkBtn}>← Sessions</button>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)' }}>Call Summary</h1>
+      <header style={{ padding: `${V.sp3} ${V.sp8}`, borderBottom: '1px solid var(--border-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: V.sp4 }}>
+            <button onClick={onBack} style={linkBtn}>← Sessions</button>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)' }}>Call Summary</h1>
+          </div>
+          <button onClick={onNewCall} style={{ padding: `${V.sp2} ${V.sp5}`, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>
+            New Call
+          </button>
         </div>
-        <button onClick={onNewCall} style={{ padding: `${V.sp2} ${V.sp5}`, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>
-          New Call
-        </button>
+        {/* Contact name — editable */}
+        <div style={{ marginTop: V.sp2, display: 'flex', alignItems: 'center', gap: V.sp2 }}>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)', fontWeight: 600 }}>Contact:</span>
+          {editingContact ? (
+            <input
+              autoFocus
+              value={contactDraft}
+              onChange={e => setContactDraft(e.target.value)}
+              onBlur={() => saveContact(contactDraft)}
+              onKeyDown={e => { if (e.key === 'Enter') saveContact(contactDraft); if (e.key === 'Escape') setEditingContact(false) }}
+              placeholder="Enter contact name..."
+              style={{ padding: '2px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontWeight: 600, outline: 'none', width: 200 }}
+            />
+          ) : (
+            <button
+              onClick={() => { setContactDraft(contactName); setEditingContact(true) }}
+              style={{ padding: '2px 10px', background: contactName ? 'var(--surface-2)' : 'transparent', border: contactName ? '1px solid var(--border-1)' : '1px dashed var(--border-1)', borderRadius: 'var(--radius-full)', color: contactName ? 'var(--ink-2)' : 'var(--ink-4)', fontSize: 'var(--text-xs)', fontWeight: contactName ? 600 : 400, cursor: 'pointer' }}
+            >
+              {contactName ? `${contactName} ✎` : '+ Add contact name'}
+            </button>
+          )}
+        </div>
       </header>
 
       <main style={{ flex: 1, overflow: 'auto', padding: V.sp8 }}>
