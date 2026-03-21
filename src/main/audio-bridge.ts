@@ -24,6 +24,7 @@ function safeSend(win: BrowserWindow, channel: string, ...args: unknown[]): void
 }
 
 export function setupAudioBridge(win: BrowserWindow): void {
+  ipcMain.removeHandler('audio:check-permission')
   ipcMain.handle('audio:check-permission', async () => {
     const bin = getAudioCaptureBin()
     if (!require('fs').existsSync(bin)) {
@@ -32,6 +33,7 @@ export function setupAudioBridge(win: BrowserWindow): void {
     return { status: 'unknown' }
   })
 
+  ipcMain.removeHandler('audio:start')
   ipcMain.handle('audio:start', async () => {
     if (captureProcess) return { error: 'Already capturing' }
 
@@ -84,6 +86,7 @@ export function setupAudioBridge(win: BrowserWindow): void {
     return { ok: true }
   })
 
+  ipcMain.removeHandler('audio:stop')
   ipcMain.handle('audio:stop', async () => {
     if (!captureProcess) return { ok: true }
     captureProcess.stdin?.end()
