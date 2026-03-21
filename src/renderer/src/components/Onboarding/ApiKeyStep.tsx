@@ -119,7 +119,7 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
           style={{
             flex: 1, padding: '11px 0',
             background: testState === 'success' ? 'var(--positive)' : 'var(--primary)',
-            color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
+            color: 'white', border: 'none', borderRadius: 'var(--radius-md)',
             fontWeight: 500, cursor: !key.trim() || testState === 'testing' ? 'not-allowed' : 'pointer',
             opacity: !key.trim() || testState === 'testing' ? 0.6 : 1
           }}
@@ -143,7 +143,7 @@ export default function ApiKeyStep({ onNext }: Props): React.ReactElement {
         disabled={testState !== 'success'}
         style={{
           marginTop: 32, padding: '12px 0',
-          background: 'var(--primary)', color: '#fff',
+          background: 'var(--primary)', color: 'white',
           border: 'none', borderRadius: 'var(--radius-md)',
           fontWeight: 600, cursor: testState !== 'success' ? 'not-allowed' : 'pointer',
           opacity: testState !== 'success' ? 0.4 : 1, fontSize: 15

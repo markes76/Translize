@@ -40,8 +40,8 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
 
       {/* Important callout — users get nervous about Screen Recording */}
       <div style={{
-        padding: 14, background: 'rgba(37, 99, 235, 0.08)',
-        borderRadius: 'var(--radius-md)', border: '1px solid rgba(37, 99, 235, 0.2)',
+        padding: 14, background: 'var(--primary-subtle)',
+        borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)',
         marginBottom: 24
       }}>
         <p style={{ fontSize: 13, lineHeight: 1.5 }}>
@@ -71,10 +71,10 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
 
       {status === 'denied' && (
         <div style={{
-          padding: 16, background: '#fef3c7', borderRadius: 'var(--radius-md)',
-          marginBottom: 24, border: '1px solid #fbbf24'
+          padding: 16, background: 'var(--amber-subtle)', borderRadius: 'var(--radius-md)',
+          marginBottom: 24, border: '1px solid var(--warning)'
         }}>
-          <p style={{ fontSize: 13, color: '#92400e', lineHeight: 1.5, marginBottom: 10 }}>
+          <p style={{ fontSize: 13, color: 'var(--amber)', lineHeight: 1.5, marginBottom: 10 }}>
             To enable system audio capture, go to{' '}
             <strong>System Settings → Privacy &amp; Security → Screen Recording</strong>{' '}
             and enable Translize.
@@ -84,7 +84,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
               onClick={() => window.translize.shell.openPrivacySettings('Privacy_ScreenCapture')}
               style={{
                 padding: '6px 12px', fontSize: 12,
-                background: '#92400e', color: '#fff', border: 'none',
+                background: 'var(--amber)', color: 'white', border: 'none',
                 borderRadius: 'var(--radius-md)', cursor: 'pointer'
               }}
             >
@@ -94,8 +94,8 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
               onClick={checkStatus}
               style={{
                 padding: '6px 12px', fontSize: 12,
-                background: 'transparent', color: '#92400e',
-                border: '1px solid #fbbf24', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                background: 'transparent', color: 'var(--amber)',
+                border: '1px solid var(--warning)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
               }}
             >
               Check Again
@@ -109,7 +109,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
           onClick={requestPermission}
           disabled={status === 'checking'}
           style={{
-            padding: '12px 0', background: 'var(--primary)', color: '#fff',
+            padding: '12px 0', background: 'var(--primary)', color: 'white',
             border: 'none', borderRadius: 'var(--radius-md)',
             fontWeight: 500, cursor: 'pointer', marginBottom: 12
           }}
@@ -130,7 +130,7 @@ export default function AudioPermissionStep({ onNext }: Props): React.ReactEleme
         style={{
           marginTop: 'auto', padding: '12px 0',
           background: status === 'granted' ? 'var(--primary)' : 'var(--surface-2)',
-          color: status === 'granted' ? '#fff' : 'var(--ink-1)',
+          color: status === 'granted' ? 'white' : 'var(--ink-1)',
           border: `1px solid ${status === 'granted' ? 'transparent' : 'var(--border-1)'}`,
           borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer', fontSize: 15
         }}

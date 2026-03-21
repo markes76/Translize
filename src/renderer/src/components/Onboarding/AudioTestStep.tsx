@@ -142,7 +142,7 @@ export default function AudioTestStep({ onComplete }: Props): React.ReactElement
         onClick={() => { stopTest(); onComplete() }}
         style={{
           marginTop: 'auto', padding: '12px 0',
-          background: 'var(--primary)', color: '#fff',
+          background: 'var(--primary)', color: 'white',
           border: 'none', borderRadius: 'var(--radius-md)',
           fontWeight: 600, cursor: 'pointer', fontSize: 15
         }}

@@ -111,7 +111,7 @@ export default function Transcript({ segments, isCapturing }: Props): React.Reac
 
       {!autoScroll && (
         <button onClick={() => { setAutoScroll(true); bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }}
-          style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', padding: '4px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--shadow)' }}>
+          style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', padding: '4px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-full)', fontSize: 10, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--shadow-md)' }}>
           ↓
         </button>
       )}

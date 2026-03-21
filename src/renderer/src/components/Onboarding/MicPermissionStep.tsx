@@ -48,10 +48,10 @@ export default function MicPermissionStep({ onNext }: Props): React.ReactElement
 
       {status === 'denied' && (
         <div style={{
-          padding: 16, background: '#fef3c7', borderRadius: 'var(--radius-md)',
-          marginBottom: 24, border: '1px solid #fbbf24'
+          padding: 16, background: 'var(--amber-subtle)', borderRadius: 'var(--radius-md)',
+          marginBottom: 24, border: '1px solid var(--warning)'
         }}>
-          <p style={{ fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: 'var(--amber)', lineHeight: 1.5 }}>
             You denied microphone access. You can still capture the other person's audio via system
             audio. If you change your mind, go to{' '}
             <strong>System Settings → Privacy &amp; Security → Microphone</strong>.
@@ -60,7 +60,7 @@ export default function MicPermissionStep({ onNext }: Props): React.ReactElement
             onClick={() => window.translize.shell.openPrivacySettings('Privacy_Microphone')}
             style={{
               marginTop: 8, padding: '6px 12px', fontSize: 12,
-              background: '#92400e', color: '#fff', border: 'none',
+              background: 'var(--amber)', color: 'white', border: 'none',
               borderRadius: 'var(--radius-md)', cursor: 'pointer'
             }}
           >
@@ -74,7 +74,7 @@ export default function MicPermissionStep({ onNext }: Props): React.ReactElement
           onClick={requestPermission}
           disabled={status === 'checking'}
           style={{
-            padding: '12px 0', background: 'var(--primary)', color: '#fff',
+            padding: '12px 0', background: 'var(--primary)', color: 'white',
             border: 'none', borderRadius: 'var(--radius-md)',
             fontWeight: 500, cursor: 'pointer', marginBottom: 12
           }}
@@ -88,7 +88,7 @@ export default function MicPermissionStep({ onNext }: Props): React.ReactElement
         style={{
           marginTop: 'auto', padding: '12px 0',
           background: status === 'granted' ? 'var(--primary)' : 'var(--surface-2)',
-          color: status === 'granted' ? '#fff' : 'var(--ink-1)',
+          color: status === 'granted' ? 'white' : 'var(--ink-1)',
           border: `1px solid ${status === 'granted' ? 'transparent' : 'var(--border-1)'}`,
           borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer', fontSize: 15
         }}

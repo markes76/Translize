@@ -9,7 +9,7 @@ interface Props {
 
 const STATUS_CFG: Record<SessionStatus, { dot: string; label: string; color: string }> = {
   idle: { dot: 'var(--ink-3)', label: 'Ready', color: 'var(--ink-3)' },
-  connecting: { dot: '#f59e0b', label: 'Connecting', color: '#f59e0b' },
+  connecting: { dot: 'var(--warning)', label: 'Connecting', color: 'var(--warning)' },
   connected: { dot: 'var(--positive)', label: 'Live', color: 'var(--positive)' },
   disconnected: { dot: 'var(--ink-3)', label: 'Disconnected', color: 'var(--ink-3)' },
   error: { dot: 'var(--negative)', label: 'Error', color: 'var(--negative)' }
@@ -30,7 +30,7 @@ export default function AudioControls({ status, statusDetail, isCapturing, segme
         display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px',
         background: isActive ? 'var(--negative)' : 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
         color: 'white', border: 'none', borderRadius: 24, fontSize: 13, fontWeight: 600,
-        boxShadow: 'var(--shadow)', cursor: 'pointer', transition: 'all 0.15s'
+        boxShadow: 'var(--shadow-sm)', cursor: 'pointer', transition: 'all var(--transition-fast)'
       }}>
         <span style={{ width: 8, height: 8, borderRadius: isActive ? 2 : '50%', background: 'white' }} />
         {isActive ? 'Stop' : 'Start Listening'}

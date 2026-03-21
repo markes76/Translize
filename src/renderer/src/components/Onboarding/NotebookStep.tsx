@@ -68,7 +68,7 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
       </p>
 
       <div style={{
-        padding: 18, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)',
+        padding: 18, background: 'var(--surface-2)', borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-1)', marginBottom: 24
       }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -103,8 +103,8 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
       {(phase === 'installing' || phase === 'logging-in') && (
         <div style={{
           padding: '12px 16px', marginBottom: 16,
-          background: 'rgba(37, 99, 235, 0.06)', border: '1px solid rgba(37, 99, 235, 0.2)',
-          borderRadius: 'var(--radius)', fontSize: 13
+          background: 'var(--primary-subtle)', border: '1px solid var(--primary)',
+          borderRadius: 'var(--radius-md)', fontSize: 13
         }}>
           <div style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: 4 }}>
             {phase === 'installing' ? 'Installing...' : 'Waiting for Google sign-in...'}
@@ -116,8 +116,8 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
       {error && (
         <div style={{
           padding: '10px 14px', marginBottom: 16,
-          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-          borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--negative)', lineHeight: 1.5
+          background: 'var(--negative-subtle)', border: '1px solid var(--negative)',
+          borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--negative)', lineHeight: 1.5
         }}>
           {error}
         </div>
@@ -128,8 +128,8 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
           <button
             onClick={onNext}
             style={{
-              padding: '12px 0', background: 'var(--positive)', color: '#fff',
-              border: 'none', borderRadius: 'var(--radius)',
+              padding: '12px 0', background: 'var(--positive)', color: 'white',
+              border: 'none', borderRadius: 'var(--radius-md)',
               fontWeight: 600, cursor: 'pointer', fontSize: 15
             }}
           >
@@ -142,7 +142,7 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
             style={{
               padding: '12px 0',
               background: (phase === 'installing' || phase === 'logging-in') ? 'var(--ink-3)' : 'var(--primary)',
-              color: '#fff', border: 'none', borderRadius: 'var(--radius)',
+              color: 'white', border: 'none', borderRadius: 'var(--radius-md)',
               fontWeight: 600,
               cursor: (phase === 'installing' || phase === 'logging-in') ? 'default' : 'pointer',
               fontSize: 15
@@ -162,7 +162,7 @@ export default function NotebookStep({ onNext, onSkip }: Props): React.ReactElem
           style={{
             padding: '12px 0', background: 'transparent',
             color: 'var(--ink-3)', border: '1px solid var(--border-1)',
-            borderRadius: 'var(--radius)',
+            borderRadius: 'var(--radius-md)',
             cursor: (phase === 'installing' || phase === 'logging-in') ? 'default' : 'pointer',
             fontSize: 14,
             opacity: (phase === 'installing' || phase === 'logging-in') ? 0.5 : 1

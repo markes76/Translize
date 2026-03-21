@@ -47,7 +47,7 @@ export default function WelcomeStep({ onNext }: Props): React.ReactElement {
         onClick={onNext}
         style={{
           marginTop: 8, padding: '14px 40px',
-          background: 'var(--primary)', color: '#fff',
+          background: 'var(--primary)', color: 'white',
           border: 'none', borderRadius: 'var(--radius-md)',
           fontSize: 16, fontWeight: 600, cursor: 'pointer',
           transition: 'background 0.15s'

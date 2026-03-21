@@ -79,14 +79,14 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
 
   const S = {
     page: { display: 'flex' as const, flexDirection: 'column' as const, flex: 1, background: 'var(--surface-1)' },
-    header: { padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 16, borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)' },
-    backBtn: { background: 'none', border: 'none', color: 'var(--primary)', fontSize: 13, fontWeight: 600 as const, cursor: 'pointer' as const },
-    title: { fontSize: 18, fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.02em' },
-    content: { flex: 1, overflow: 'auto' as const, padding: '32px' },
+    header: { padding: 'var(--sp-4) var(--sp-8)', display: 'flex', alignItems: 'center', gap: 'var(--sp-4)', borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)' },
+    backBtn: { background: 'none', border: 'none', color: 'var(--primary)', fontSize: 'var(--text-sm)', fontWeight: 600 as const, cursor: 'pointer' as const },
+    title: { fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.02em' },
+    content: { flex: 1, overflow: 'auto' as const, padding: 'var(--sp-8)' },
     inner: { maxWidth: 560, margin: '0 auto' },
-    label: { display: 'block' as const, fontSize: 11, fontWeight: 700 as const, color: 'var(--ink-3)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 10 },
-    input: { width: '100%', padding: '12px 16px', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 14, outline: 'none' },
-    section: { marginBottom: 32 },
+    label: { display: 'block' as const, fontSize: 'var(--text-xs)', fontWeight: 700 as const, color: 'var(--ink-3)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 'var(--sp-3)' },
+    input: { width: '100%', padding: 'var(--sp-3) var(--sp-4)', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', outline: 'none' },
+    section: { marginBottom: 'var(--sp-8)' },
   }
 
   return (
@@ -160,7 +160,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
                 <button key={m.value} onClick={() => setMode(m.value)} style={{
                   flex: 1, padding: '20px 12px', background: mode === m.value ? 'var(--primary-subtle)' : 'var(--surface-raised)',
                   border: `2px solid ${mode === m.value ? 'var(--primary)' : 'var(--border-1)'}`,
-                  borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center' as const, transition: 'all 0.15s'
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center' as const, transition: 'all 0.15s'
                 }}>
                   <div style={{
                     fontSize: m.icon ? 22 : 12,
@@ -181,7 +181,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
 
           {/* NLM Gate */}
           {needsNlm && nlmState !== 'connected' && (
-            <div style={{ ...S.section, padding: 24, background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius)' }}>
+            <div style={{ ...S.section, padding: 24, background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)' }}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Connect NotebookLM</div>
               <p style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 16 }}>Sign in to access your notebooks.</p>
               {nlmProgress && <div style={{ padding: '8px 12px', background: 'var(--primary-subtle)', borderRadius: 'var(--radius-xs)', fontSize: 12, color: 'var(--primary)', marginBottom: 10 }}>{nlmProgress}</div>}
@@ -235,7 +235,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
           <button onClick={handleStart} disabled={!canStart} style={{
             width: '100%', padding: '16px 24px',
             background: canStart ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)' : 'var(--surface-2)',
-            color: canStart ? 'white' : 'var(--ink-3)', border: 'none', borderRadius: 'var(--radius)',
+            color: canStart ? 'white' : 'var(--ink-3)', border: 'none', borderRadius: 'var(--radius-md)',
             fontSize: 15, fontWeight: 600, cursor: canStart ? 'pointer' : 'default',
             boxShadow: canStart ? '0 4px 14px rgba(37, 99, 235, 0.35)' : 'none', transition: 'all 0.2s'
           }}>
