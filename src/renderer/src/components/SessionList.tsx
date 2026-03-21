@@ -7,7 +7,7 @@ interface Session {
   createdAt: string; updatedAt: string
 }
 
-interface Props { onNewCall: () => void; onRelationships: () => void; onSettings: () => void; onSelectSession: (session: Session) => void }
+interface Props { onNewCall: (prefillName?: string) => void; onRelationships: () => void; onSettings: () => void; onSelectSession: (session: Session) => void }
 
 function formatFullDate(iso: string): string {
   const d = new Date(iso)
@@ -168,12 +168,20 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
                         </div>
                       </div>
                     </button>
-                    {/* Expanded: show sessions */}
+                    {/* Expanded: show sessions + new call button */}
                     {isExpanded && (
                       <div style={{ borderLeft: '1px solid var(--border-1)', borderRight: '1px solid var(--border-1)', borderBottom: '1px solid var(--border-1)', borderRadius: '0 0 var(--radius-md) var(--radius-md)', padding: V.sp3 }}>
                         {group.sessions.map(s => (
                           <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
                         ))}
+                        <button onClick={() => onNewCall(contactName)} style={{
+                          width: '100%', padding: `${V.sp3} ${V.sp4}`, marginTop: V.sp2,
+                          background: 'none', border: '1px dashed var(--border-1)',
+                          borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)',
+                          fontWeight: 600, color: 'var(--primary)', cursor: 'pointer'
+                        }}>
+                          + New call with {contactName}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -182,7 +190,28 @@ export default function SessionList({ onNewCall, onRelationships, onSettings, on
 
               {ungrouped.length > 0 && (
                 <Section title="Ungrouped">
-                  {ungrouped.map(s => <Card key={s.id} s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />)}
+                  {ungrouped.map(s => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: V.sp2 }}>
+                      <div style={{ flex: 1 }}>
+                        <Card s={s} h={hovered === s.id} onH={v => setHovered(v ? s.id : null)} onClick={() => onSelectSession(s)} onDel={e => del(e, s.id)} />
+                      </div>
+                      <button onClick={async (e) => {
+                        e.stopPropagation()
+                        const name = prompt('Enter a name for this session (e.g. contact name):')
+                        if (name?.trim()) {
+                          await window.translize.session.update(s.id, { name: name.trim() })
+                          const updated = await window.translize.session.list() as Session[]
+                          setSessions(updated)
+                        }
+                      }} title="Assign to group" style={{
+                        background: 'none', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)',
+                        padding: `${V.sp2} ${V.sp3}`, fontSize: 10, fontWeight: 600, color: 'var(--ink-3)',
+                        cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap'
+                      }}>
+                        Group
+                      </button>
+                    </div>
+                  ))}
                 </Section>
               )}
             </>

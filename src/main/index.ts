@@ -8,6 +8,7 @@ import { setupKnowledgeBaseIpc } from './knowledge-base'
 import { setupMcpIpc, cleanupMcpServer } from './mcp-server-manager'
 import { setupSpeakerIpc } from './speaker-detector'
 import { setupTavilyIpc } from './tavily-search'
+import { setupGeminiIpc } from './gemini-service'
 import { keychainGet } from './keychain'
 import { readConfig } from './config'
 
@@ -75,6 +76,7 @@ app.whenReady().then(() => {
   setupMcpIpc()
   setupSpeakerIpc()
   setupTavilyIpc()
+  setupGeminiIpc()
 
   if (!isMacOSSupported()) {
     // Create minimal window to show the version error

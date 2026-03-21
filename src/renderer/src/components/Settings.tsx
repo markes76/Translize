@@ -7,17 +7,25 @@ const V = { sp2: '8px', sp3: '12px', sp4: '16px', sp5: '20px', sp6: '24px', sp8:
 export default function Settings({ onBack }: Props): React.ReactElement {
   const [openaiKey, setOpenaiKey] = useState('')
   const [openaiOk, setOpenaiOk] = useState(false)
+  const [openaiEditing, setOpenaiEditing] = useState(false)
+  const [openaiNewKey, setOpenaiNewKey] = useState('')
+  const [openaiTesting, setOpenaiTesting] = useState(false)
   const [tavilyKey, setTavilyKey] = useState('')
   const [tavilyOk, setTavilyOk] = useState(false)
   const [tavilyTesting, setTavilyTesting] = useState(false)
   const [tavilyEnabled, setTavilyEnabled] = useState(true)
   const [nlmStatus, setNlmStatus] = useState<{ authenticated: boolean; installed: boolean }>({ authenticated: false, installed: false })
+  const [geminiKey, setGeminiKey] = useState('')
+  const [geminiOk, setGeminiOk] = useState(false)
+  const [geminiTesting, setGeminiTesting] = useState(false)
+  const [audioBuffering, setAudioBuffering] = useState(false)
   const [config, setConfig] = useState<Record<string, unknown>>({})
 
   useEffect(() => {
     window.translize.keychain.get('openai-api-key').then(k => { if (k) { setOpenaiKey('••••••••' + k.slice(-4)); setOpenaiOk(true) } })
     window.translize.tavily.status().then(s => { setTavilyOk(s.configured); if (s.configured) setTavilyKey('••••••••') })
     window.translize.notebooklm.status().then((s: any) => setNlmStatus(s))
+    window.translize.gemini.status().then(s => { setGeminiOk(s.configured); setAudioBuffering(s.audioBufferingEnabled); if (s.configured) setGeminiKey('••••••••') })
     window.translize.config.read().then(c => { setConfig(c); setTavilyEnabled(c.tavily_enabled !== false) })
   }, [])
 
@@ -52,13 +60,39 @@ export default function Settings({ onBack }: Props): React.ReactElement {
 
           {/* OpenAI */}
           <IntegrationCard title="OpenAI" desc="Transcription, analysis, and AI features" status={openaiOk ? 'connected' : 'disconnected'} icon="AI">
-            <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3 }}>
-              <input value={openaiKey} readOnly style={inputStyle} placeholder="Not configured" />
-              <StatusDot ok={openaiOk} />
-            </div>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)', marginTop: V.sp2 }}>
-              Change your API key in the onboarding flow (Reset App in session list).
-            </p>
+            {!openaiEditing ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3, marginBottom: V.sp3 }}>
+                  <input value={openaiKey} readOnly style={inputStyle} placeholder="Not configured" />
+                  <StatusDot ok={openaiOk} />
+                </div>
+                <SmallBtn label={openaiOk ? 'Change Key' : 'Add API Key'} color="var(--primary)" onClick={() => setOpenaiEditing(true)} />
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3, marginBottom: V.sp3 }}>
+                  <input value={openaiNewKey} onChange={e => setOpenaiNewKey(e.target.value)} placeholder="sk-your-openai-api-key" type="password" style={inputStyle} />
+                </div>
+                <div style={{ display: 'flex', gap: V.sp2 }}>
+                  <SmallBtn label={openaiTesting ? 'Testing...' : 'Test & Save'} color="var(--primary)" onClick={async () => {
+                    if (!openaiNewKey.trim()) return
+                    setOpenaiTesting(true)
+                    try {
+                      const resp = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': `Bearer ${openaiNewKey.trim()}` } })
+                      if (resp.ok) {
+                        await window.translize.keychain.set('openai-api-key', openaiNewKey.trim())
+                        setOpenaiKey('••••••••' + openaiNewKey.trim().slice(-4))
+                        setOpenaiOk(true)
+                        setOpenaiEditing(false)
+                        setOpenaiNewKey('')
+                      } else { alert('Invalid API key') }
+                    } catch (e) { alert(`Error: ${(e as Error).message}`) }
+                    setOpenaiTesting(false)
+                  }} disabled={openaiTesting || !openaiNewKey.trim()} />
+                  <SmallBtn label="Cancel" color="var(--ink-3)" onClick={() => { setOpenaiEditing(false); setOpenaiNewKey('') }} />
+                </div>
+              </>
+            )}
           </IntegrationCard>
 
           {/* Tavily */}
@@ -92,14 +126,59 @@ export default function Settings({ onBack }: Props): React.ReactElement {
               </span>
               <StatusDot ok={nlmStatus.authenticated} />
             </div>
-            {!nlmStatus.authenticated && (
-              <SmallBtn label="Connect NotebookLM" color="var(--purple)" onClick={async () => {
+            <div style={{ display: 'flex', gap: V.sp2, flexWrap: 'wrap' }}>
+              <SmallBtn label={nlmStatus.authenticated ? 'Re-authenticate' : 'Connect NotebookLM'} color="var(--purple)" onClick={async () => {
                 if (!nlmStatus.installed) await window.translize.notebooklm.setup()
                 await window.translize.notebooklm.login()
                 const s = await window.translize.notebooklm.status() as any
                 setNlmStatus(s)
               }} />
-            )}
+              {nlmStatus.authenticated && (
+                <SmallBtn label="Disconnect" color="var(--negative)" onClick={async () => {
+                  await window.translize.notebooklm.stop()
+                  await window.translize.config.write({ notebooklm_enabled: false })
+                  setNlmStatus({ authenticated: false, installed: nlmStatus.installed })
+                }} />
+              )}
+            </div>
+          </IntegrationCard>
+
+          {/* Gemini */}
+          <IntegrationCard title="Google Gemini" desc="Deep voice sentiment analysis — detects tone, sarcasm, and vocal dynamics" status={geminiOk ? 'connected' : 'not configured'} icon="🎙">
+            <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3, marginBottom: V.sp3 }}>
+              <input value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="Your Gemini API key" type={geminiKey.startsWith('••') ? 'text' : 'password'} style={inputStyle} />
+              <StatusDot ok={geminiOk} />
+            </div>
+            <div style={{ display: 'flex', gap: V.sp2, flexWrap: 'wrap', marginBottom: V.sp4 }}>
+              {!geminiOk && (
+                <SmallBtn label={geminiTesting ? 'Testing...' : 'Test & Save'} color="var(--primary)" onClick={async () => {
+                  if (!geminiKey.trim() || geminiKey.startsWith('••')) return
+                  setGeminiTesting(true)
+                  const r = await window.translize.gemini.testKey(geminiKey.trim())
+                  if (r.ok) { await window.translize.gemini.setKey(geminiKey.trim()); setGeminiOk(true); setGeminiKey('••••••••') }
+                  else alert(`Gemini test failed: ${r.error}`)
+                  setGeminiTesting(false)
+                }} disabled={geminiTesting || !geminiKey.trim() || geminiKey.startsWith('••')} />
+              )}
+              {geminiOk && <SmallBtn label="Remove Key" color="var(--negative)" onClick={async () => { await window.translize.gemini.removeKey(); setGeminiOk(false); setGeminiKey('') }} />}
+            </div>
+
+            {/* Audio buffering toggle */}
+            <div style={{ padding: `${V.sp4}`, background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', marginBottom: V.sp2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: V.sp2 }}>
+                <div>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--ink-1)' }}>Audio Buffering</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)', marginTop: 2 }}>Temporarily store call audio for voice analysis. Auto-deleted after 30 min.</div>
+                </div>
+                <button onClick={async () => { const v = !audioBuffering; setAudioBuffering(v); await window.translize.gemini.toggleAudioBuffering(v) }} style={{
+                  width: 40, height: 22, borderRadius: 11, padding: 2, border: 'none', cursor: 'pointer',
+                  background: audioBuffering ? 'var(--positive)' : 'var(--ink-5)', transition: 'background 0.2s'
+                }}>
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'white', boxShadow: 'var(--shadow-sm)', transform: audioBuffering ? 'translateX(18px)' : 'translateX(0)', transition: 'transform 0.2s' }} />
+                </button>
+              </div>
+            </div>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>Gemini is used exclusively for deep sentiment analysis with voice. All other features use OpenAI.</p>
           </IntegrationCard>
 
           {/* Coming Soon */}

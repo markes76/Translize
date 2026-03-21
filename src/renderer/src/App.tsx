@@ -107,8 +107,8 @@ export default function App(): React.ReactElement {
   if (state === 'home') {
     return (
       <SessionList
-        onNewCall={() => {
-          setPrefill(undefined)
+        onNewCall={(prefillName?: string) => {
+          setPrefill(prefillName ? { name: prefillName } : undefined)
           setState('setup')
         }}
         onRelationships={() => setState('relationships')}

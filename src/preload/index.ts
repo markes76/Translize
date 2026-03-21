@@ -98,6 +98,13 @@ const api = {
     find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName),
     delete: (skillId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('skill:delete', skillId)
   },
+  gemini: {
+    testKey: (apiKey: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('gemini:test-key', apiKey),
+    setKey: (apiKey: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('gemini:set-key', apiKey),
+    removeKey: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('gemini:remove-key'),
+    status: (): Promise<{ configured: boolean; audioBufferingEnabled: boolean }> => ipcRenderer.invoke('gemini:status'),
+    toggleAudioBuffering: (enabled: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke('gemini:toggle-audio-buffering', enabled)
+  },
   tavily: {
     search: (query: string): Promise<{ results: Array<{ title: string; content: string; url: string; score: number }>; answer?: string; error?: string }> =>
       ipcRenderer.invoke('tavily:search', query),
