@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TranscriptSegment } from '../services/openai-realtime'
-import { generateSummary, CallSummary } from '../services/summarizer'
+import { generateSummary, diarizeTranscript, AttributedLine, CallSummary } from '../services/summarizer'
 import { analyzeSentiment, SentimentAnalysis } from '../services/sentiment-engine'
 import { generateOrUpdateSkill } from '../services/skill-manager'
 
@@ -24,6 +24,12 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
   const [syncStatus, setSyncStatus] = useState<'idle'|'syncing'|'synced'|'error'>('idle')
   const [syncMsg, setSyncMsg] = useState('')
   const [showTx, setShowTx] = useState(false)
+  const [attributed, setAttributed] = useState<AttributedLine[]>([])
+  const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({})
+  const [renamingSpk, setRenamingSpk] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [addingSpeaker, setAddingSpeaker] = useState(false)
+  const [newSpeakerDraft, setNewSpeakerDraft] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [notes, setNotes] = useState('')
@@ -49,8 +55,20 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
       try {
         const key = await window.translize.keychain.get('openai-api-key')
         if (!key) { setError('API key not found'); setLoading(false); return }
-        const [sum, sent] = await Promise.all([generateSummary(segments, key), analyzeSentiment(segments, key).catch(() => null)])
-        setSummary(sum); if (sent) setSentiment(sent)
+        const [sum, sent, diarized] = await Promise.all([
+          generateSummary(segments, key),
+          analyzeSentiment(segments, key).catch(() => null),
+          diarizeTranscript(segments, key).catch(() => [] as AttributedLine[])
+        ])
+        setSummary(sum)
+        if (sent) setSentiment(sent)
+        if (diarized.length) {
+          setAttributed(diarized)
+          // Build initial speaker name map from unique speakers
+          const names: Record<string, string> = {}
+          diarized.forEach(l => { names[l.speaker] = l.speaker })
+          setSpeakerNames(names)
+        }
 
         // Auto-save sentiment
         if (sent) {
@@ -331,6 +349,96 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
                 </div>
               )}
 
+              {/* Speakers — auto-detected, editable */}
+              {attributed.length > 0 && (
+                <div style={{ marginBottom: V.sp10, padding: V.sp6, background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-lg)' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: V.sp4 }}>Speakers</div>
+                  <div style={{ display: 'flex', gap: V.sp3, flexWrap: 'wrap' }}>
+                    {Object.keys(speakerNames).map(spk => {
+                      const lineCount = attributed.filter(l => l.speaker === spk).length
+                      return (
+                        <div key={spk} style={{ display: 'flex', alignItems: 'center', gap: V.sp2, padding: `${V.sp2} ${V.sp4}`, background: 'var(--surface-2)', borderRadius: 'var(--radius-full)', border: '1px solid var(--border-1)' }}>
+                          {renamingSpk === spk ? (
+                            <input
+                              autoFocus
+                              value={renameDraft}
+                              onChange={e => setRenameDraft(e.target.value)}
+                              onBlur={() => {
+                                const trimmed = renameDraft.trim()
+                                if (trimmed && trimmed !== spk) {
+                                  setSpeakerNames(prev => {
+                                    const next: Record<string, string> = {}
+                                    for (const k of Object.keys(prev)) {
+                                      next[k === spk ? trimmed : k] = k === spk ? trimmed : prev[k]
+                                    }
+                                    return next
+                                  })
+                                  setAttributed(prev => prev.map(l => l.speaker === spk ? { ...l, speaker: trimmed } : l))
+                                }
+                                setRenamingSpk(null)
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                if (e.key === 'Escape') setRenamingSpk(null)
+                              }}
+                              style={{ fontSize: 'var(--text-xs)', fontWeight: 600, background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink-1)', width: 100 }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => { setRenamingSpk(spk); setRenameDraft(spk) }}
+                              title="Click to rename"
+                              style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--ink-1)', cursor: 'pointer' }}
+                            >
+                              {spk}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{lineCount}</span>
+                          <span style={{ opacity: 0.35, fontSize: 9, cursor: 'pointer' }} onClick={() => { setRenamingSpk(spk); setRenameDraft(spk) }}>&#x270E;</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: V.sp2, marginTop: V.sp3 }}>
+                    {addingSpeaker ? (
+                      <input
+                        autoFocus
+                        value={newSpeakerDraft}
+                        onChange={e => setNewSpeakerDraft(e.target.value)}
+                        onBlur={() => {
+                          const name = newSpeakerDraft.trim()
+                          if (name && !speakerNames[name]) {
+                            setSpeakerNames(prev => ({ ...prev, [name]: name }))
+                          }
+                          setAddingSpeaker(false)
+                          setNewSpeakerDraft('')
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const name = newSpeakerDraft.trim()
+                            if (name && !speakerNames[name]) {
+                              setSpeakerNames(prev => ({ ...prev, [name]: name }))
+                            }
+                            setAddingSpeaker(false)
+                            setNewSpeakerDraft('')
+                          }
+                          if (e.key === 'Escape') { setAddingSpeaker(false); setNewSpeakerDraft('') }
+                        }}
+                        placeholder="Speaker name..."
+                        style={{ padding: `${V.sp1} ${V.sp3}`, background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', color: 'var(--ink-1)', outline: 'none', width: 140 }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setAddingSpeaker(true)}
+                        style={{ padding: `${V.sp1} ${V.sp3}`, background: 'transparent', border: '1px dashed var(--border-1)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', color: 'var(--ink-4)', cursor: 'pointer' }}
+                      >
+                        + Add speaker
+                      </button>
+                    )}
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-5)' }}>Click name to rename · use Find &amp; Replace to reassign lines</span>
+                  </div>
+                </div>
+              )}
+
               {/* Summary grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: V.sp4, marginBottom: V.sp10 }}>
                 {summary.keyTopics.length > 0 && <SumCard title="Key Topics">{summary.keyTopics.map((t, i) => <Bullet key={i} color="var(--primary)">{t}</Bullet>)}</SumCard>}
@@ -402,25 +510,55 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
                   {showTx && <button onClick={() => setShowFR(!showFR)} style={linkBtn}>{showFR ? 'Hide' : 'Find & Replace'}</button>}
                 </div>
                 {showTx && showFR && (
-                  <div style={{ display: 'flex', gap: V.sp2, marginBottom: V.sp3 }}>
-                    <input value={findText} onChange={e => setFindText(e.target.value)} placeholder="Find..." style={frInput} />
-                    <input value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace..." style={frInput} />
-                    <button onClick={() => {
-                      if (!findText.trim()) return; const rx = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
-                      setEditedSegs(p => p.map(s => ({ ...s, text: s.text.replace(rx, replaceText) })))
-                    }} style={{ padding: `${V.sp2} ${V.sp4}`, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      Replace All
-                    </button>
+                  <div style={{ marginBottom: V.sp3 }}>
+                    <div style={{ display: 'flex', gap: V.sp2, marginBottom: V.sp2 }}>
+                      <input value={findText} onChange={e => setFindText(e.target.value)} placeholder="Find text or speaker name..." style={frInput} />
+                      <input value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace with..." style={frInput} />
+                    </div>
+                    <div style={{ display: 'flex', gap: V.sp2 }}>
+                      <button onClick={() => {
+                        if (!findText.trim()) return
+                        const rx = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+                        setEditedSegs(p => p.map(s => ({ ...s, text: s.text.replace(rx, replaceText) })))
+                      }} style={{ padding: `${V.sp2} ${V.sp4}`, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        Replace in text
+                      </button>
+                      {attributed.length > 0 && (
+                        <button onClick={() => {
+                          if (!findText.trim()) return
+                          // Reassign speaker: rename all lines where speaker matches findText → replaceText
+                          const from = findText.trim()
+                          const to = replaceText.trim() || from
+                          setAttributed(prev => prev.map(l => l.speaker.toLowerCase() === from.toLowerCase() ? { ...l, speaker: to } : l))
+                          setSpeakerNames(prev => {
+                            const next: Record<string, string> = {}
+                            for (const k of Object.keys(prev)) {
+                              next[k.toLowerCase() === from.toLowerCase() ? to : k] = k.toLowerCase() === from.toLowerCase() ? to : prev[k]
+                            }
+                            return next
+                          })
+                        }} style={{ padding: `${V.sp2} ${V.sp4}`, background: 'var(--surface-2)', color: 'var(--ink-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          Reassign speaker
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 {showTx && (
-                  <div style={{ maxHeight: 300, overflow: 'auto', padding: V.sp4, background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', fontSize: 'var(--text-xs)', lineHeight: 1.7 }}>
-                    {editedSegs.map(s => (
-                      <div key={s.id} style={{ marginBottom: V.sp2 }}>
-                        <strong style={{ color: s.speaker === 'mic' ? 'var(--primary)' : 'var(--positive)' }}>{s.speakerName ?? (s.speaker === 'mic' ? 'In-Room' : 'Remote')}:</strong>{' '}
-                        <span style={{ color: 'var(--ink-2)' }}>{s.text}</span>
-                      </div>
-                    ))}
+                  <div style={{ maxHeight: 400, overflow: 'auto', padding: V.sp4, background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', fontSize: 'var(--text-xs)', lineHeight: 1.7 }}>
+                    {attributed.length > 0
+                      ? attributed.map((l, i) => (
+                          <div key={i} style={{ marginBottom: V.sp2 }}>
+                            <strong style={{ color: 'var(--primary)' }}>{l.speaker}:</strong>{' '}
+                            <span style={{ color: 'var(--ink-2)' }}>{l.text}</span>
+                          </div>
+                        ))
+                      : editedSegs.filter(s => s.isFinal).map(s => (
+                          <div key={s.id} style={{ marginBottom: V.sp2 }}>
+                            <span style={{ color: 'var(--ink-2)' }}>{s.text}</span>
+                          </div>
+                        ))
+                    }
                   </div>
                 )}
               </div>

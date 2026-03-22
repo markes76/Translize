@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, session } from 'electron'
+import { app, BrowserWindow, nativeTheme, session, ipcMain } from 'electron'
 import path from 'path'
 import os from 'os'
 import { setupIpcHandlers } from './ipc-handlers'
@@ -7,6 +7,7 @@ import { setupSessionIpc } from './session-manager'
 import { setupKnowledgeBaseIpc } from './knowledge-base'
 import { setupMcpIpc, cleanupMcpServer } from './mcp-server-manager'
 import { setupSpeakerIpc } from './speaker-detector'
+import { setupSpeakerDiarizer } from './speaker-diarizer'
 import { setupTavilyIpc } from './tavily-search'
 import { setupGeminiIpc } from './gemini-service'
 import { setupPlatformSkillIpc } from './platform-skill'
@@ -73,12 +74,18 @@ function createWindow(): void {
   })
 }
 
+// Route renderer console.log to main process stdout for debugging
+ipcMain.on('debug:log', (_e, ...args: unknown[]) => {
+  console.log('[Renderer]', ...args)
+})
+
 app.whenReady().then(() => {
   setupIpcHandlers()
   setupSessionIpc()
   setupKnowledgeBaseIpc()
   setupMcpIpc()
   setupSpeakerIpc()
+  setupSpeakerDiarizer()
   setupTavilyIpc()
   setupGeminiIpc()
   setupPlatformSkillIpc()

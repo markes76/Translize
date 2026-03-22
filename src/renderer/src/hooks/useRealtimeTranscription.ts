@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { RealtimeTranscriptionService, TranscriptSegment } from '../services/openai-realtime'
+import { RealtimeTranscriptionService, TranscriptSegment, AudioReadyCallback } from '../services/openai-realtime'
 
 export type SessionStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'disconnected'
 
@@ -44,26 +44,20 @@ export const DEFAULT_COLORS = [
 // How many recent segments to include as context when detecting a speaker name
 const DETECTION_CONTEXT_WINDOW = 4
 
-// Parse slot number from 'mic-1', 'rem-2', 'them-3' (legacy)
+// Parse slot number from 'spk-1', 'spk-2', etc.
 function slotIndex(slot: string): number {
   const m = slot.match(/(\d+)$/)
   return m ? parseInt(m[1], 10) - 1 : 0
 }
 
-// Default display names for slots
+// Default display names — simple sequential numbering, no channel framing
 function defaultSlotName(slot: string): string {
   const n = slotIndex(slot) + 1
-  if (slot.startsWith('mic-')) return `In-Room ${n}`
-  if (slot.startsWith('rem-')) return `Remote ${n}`
-  return `Speaker ${n}` // legacy 'them-N' slots
+  return `Speaker ${n}`
 }
 
 function slotColorIndex(slot: string): number {
-  // Mic slots use even indices, sys slots use odd so colors visually distinguish channels
-  const n = slotIndex(slot)
-  if (slot.startsWith('mic-')) return (n * 2) % DEFAULT_COLORS.length
-  if (slot.startsWith('rem-')) return (n * 2 + 1) % DEFAULT_COLORS.length
-  return n % DEFAULT_COLORS.length
+  return slotIndex(slot) % DEFAULT_COLORS.length
 }
 
 export function useRealtimeTranscription(): TranscriptionState & TranscriptionActions {
@@ -84,13 +78,14 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
   const micProcessorRef = useRef<ScriptProcessorNode | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Slot name registry: { 'mic-1': 'Sarah', 'rem-1': 'John' }
+  // Slot name registry: { 'spk-1': 'Sarah', 'spk-2': 'John' }
   const slotNamesRef = useRef<Record<string, string>>({})
   // Track which slots already have pending detection to avoid duplicate API calls
   const detectionInFlightRef = useRef<Set<string>>(new Set())
 
   const handleTranscriptSegment = useCallback((seg: TranscriptSegment) => {
-    if (seg.speakerSlot) {
+    // Pending slot during diarization — don't apply name/color yet
+    if (seg.speakerSlot && !seg.speakerSlot.endsWith('-pending')) {
       const knownName = slotNamesRef.current[seg.speakerSlot]
       const colorIdx = slotColorIndex(seg.speakerSlot)
       seg.speakerName = knownName ?? defaultSlotName(seg.speakerSlot)
@@ -106,9 +101,30 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     })
   }, [])
 
+  // Called by RealtimeChannel when a segment finalizes with its raw audio
+  // Sends audio to the main-process neural diarizer, then updates the segment slot
+  const handleAudioReady: AudioReadyCallback = useCallback(async (segId, channel, buffers) => {
+    try {
+      const slot = await window.translize.speaker.identify(buffers, channel)
+      const colorIdx = slotColorIndex(slot)
+      const knownName = slotNamesRef.current[slot]
+      const speakerName = knownName ?? defaultSlotName(slot)
+      const speakerColor = DEFAULT_COLORS[colorIdx]
+
+      setSegments(prev => prev.map(s => {
+        if (s.id !== segId) return s
+        return { ...s, speakerSlot: slot, speakerName, speakerColor }
+      }))
+    } catch {
+      // Diarizer unavailable — leave segment as-is, no state update
+    }
+  }, [])
+
   // Fires on every finalized segment — detects if speaker named themselves
   const detectSegmentSpeaker = useCallback(async (seg: TranscriptSegment, allSegments: TranscriptSegment[]) => {
     if (!seg.speakerSlot || !seg.isFinal) return
+    // Skip while neural diarizer is still assigning the slot
+    if (seg.speakerSlot.endsWith('-pending')) return
     if (slotNamesRef.current[seg.speakerSlot]) return
     if (detectionInFlightRef.current.has(seg.speakerSlot)) return
 
@@ -155,22 +171,22 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     }
   }, [])
 
-  // When a new final segment arrives, trigger detection and ensure speaker entry exists
+  // When a new final segment arrives with a resolved slot, trigger name detection
   useEffect(() => {
-    const lastFinal = [...segments].reverse().find(s => s.isFinal && s.speakerSlot)
+    const lastFinal = [...segments].reverse().find(s => s.isFinal && s.speakerSlot && !s.speakerSlot.endsWith('-pending'))
     if (lastFinal) detectSegmentSpeaker(lastFinal, segments)
   }, [segments, detectSegmentSpeaker])
 
-  // Ensure every slot seen in segments has a speaker entry
+  // Ensure every slot seen in segments has a speaker entry (skip pending slots)
   useEffect(() => {
     if (!isCapturing) return
     const knownSlots = new Set(speakers.map(s => s.id))
     const newSlots: Speaker[] = []
     for (const seg of segments) {
-      if (!seg.speakerSlot || knownSlots.has(seg.speakerSlot)) continue
+      if (!seg.speakerSlot || seg.speakerSlot.endsWith('-pending') || knownSlots.has(seg.speakerSlot)) continue
       knownSlots.add(seg.speakerSlot)
       const colorIdx = slotColorIndex(seg.speakerSlot)
-      const source: 'mic' | 'sys' = seg.speakerSlot.startsWith('mic-') ? 'mic' : 'sys'
+      const source: 'mic' | 'sys' = seg.speaker === 'mic' ? 'mic' : 'sys'
       newSlots.push({
         id: seg.speakerSlot,
         name: slotNamesRef.current[seg.speakerSlot] ?? defaultSlotName(seg.speakerSlot),
@@ -185,7 +201,11 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
   const renameSpeaker = useCallback((id: string, name: string) => {
     slotNamesRef.current[id] = name
     setSpeakers(prev => prev.map(s => s.id === id ? { ...s, name } : s))
-    setSegments(prev => prev.map(s => s.speakerSlot === id ? { ...s, speakerName: name } : s))
+    // Rename all segments in this slot
+    setSegments(prev => prev.map(s => {
+      if (s.speakerSlot !== id) return s
+      return { ...s, speakerName: name }
+    }))
   }, [])
 
   const markAsMe = useCallback((id: string) => {
@@ -262,17 +282,28 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
       if (Array.isArray(config.languages)) languages = config.languages as string[]
     } catch {}
 
+    // Reset neural diarizer state for new call
+    window.translize.speaker.resetSession().catch(() => {})
+
     const service = new RealtimeTranscriptionService(
       handleTranscriptSegment,
       (s, detail) => { setStatus(s === 'connecting' ? 'connecting' : s === 'connected' ? 'connected' : s === 'disconnected' ? 'disconnected' : 'error'); setStatusDetail(detail ?? '') },
+      handleAudioReady,
       languages
     )
     serviceRef.current = service; service.connect()
     startMicCapture(service)
 
     const removeChunk = window.translize.audio.onChunk((buffer: ArrayBuffer) => { service.appendAudio(buffer, 'sys'); setSysChunkCount(p => p + 1) })
-    const removeStopped = window.translize.audio.onStopped(() => setIsCapturing(false))
-    const removePermDenied = window.translize.audio.onPermissionDenied(() => { setStatus('error'); setStatusDetail('Screen Recording permission denied.'); setIsCapturing(false) })
+    const removeStopped = window.translize.audio.onStopped(() => {
+      // System audio capture stopped (e.g. permission denied) — do NOT set isCapturing=false
+      // because mic + WebSocket transcription may still be active. isCapturing is only
+      // set to false by the explicit stopSession() call.
+    })
+    const removePermDenied = window.translize.audio.onPermissionDenied(() => {
+      // Screen Recording permission denied — system audio unavailable but mic still works.
+      // Don't kill the session — mic transcription continues.
+    })
     const removeError = window.translize.audio.onError((msg: string) => setAudioError(msg))
     removeListenersRef.current = [removeChunk, removeStopped, removePermDenied, removeError]
   }, [handleTranscriptSegment, startMicCapture])

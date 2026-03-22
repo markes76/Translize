@@ -96,7 +96,11 @@ const api = {
       existingSlotNames: Record<string, string>
     ): Promise<{ name: string; slot: string } | null> =>
       ipcRenderer.invoke('speaker:detect-segment', segmentText, speakerSlot, contextLines, existingSlotNames),
-    getColors: (): Promise<string[]> => ipcRenderer.invoke('speaker:get-colors')
+    getColors: (): Promise<string[]> => ipcRenderer.invoke('speaker:get-colors'),
+    identify: (audioBuffers: ArrayBuffer[], channel: 'mic' | 'sys'): Promise<string> =>
+      ipcRenderer.invoke('speaker:identify', audioBuffers, channel),
+    resetSession: (): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('speaker:reset-session')
   },
   contact: {
     list: (): Promise<Array<{ id: string; name: string; company?: string; email?: string; phone?: string; source: string }>> =>

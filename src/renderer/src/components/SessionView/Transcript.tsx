@@ -1,42 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TranscriptSegment } from '../../services/openai-realtime'
 
-import type { Speaker } from '../../hooks/useRealtimeTranscription'
-
 interface Props {
   segments: TranscriptSegment[]
-  speakers: Speaker[]
   isCapturing: boolean
-  onRenameSpeaker?: (speakerSlot: string, name: string) => void
 }
 
 const LANG_LABELS: Record<string, string> = {
   en: 'EN', he: 'HE', es: 'ES', fr: 'FR', de: 'DE', ar: 'AR', pt: 'PT', zh: 'ZH', ja: 'JA', ko: 'KO', ru: 'RU', it: 'IT'
 }
 
-export default function Transcript({ segments, speakers, isCapturing, onRenameSpeaker }: Props): React.ReactElement {
+export default function Transcript({ segments, isCapturing }: Props): React.ReactElement {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [translations, setTranslations] = useState<Record<string, string>>({})
   const [translating, setTranslating] = useState<Set<string>>(new Set())
-  // Track which speaker slot is being renamed: slotId → draft string
-  const [renamingSlot, setRenamingSlot] = useState<string | null>(null)
-  const [renameDraft, setRenameDraft] = useState('')
-  const renameInputRef = useRef<HTMLInputElement>(null)
-
   useEffect(() => { if (autoScroll && bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' }) }, [segments, autoScroll])
-
-  useEffect(() => {
-    if (renamingSlot && renameInputRef.current) renameInputRef.current.focus()
-  }, [renamingSlot])
-
-  const commitRename = (slot: string, name: string) => {
-    const trimmed = name.trim()
-    if (trimmed && onRenameSpeaker) onRenameSpeaker(slot, trimmed)
-    setRenamingSlot(null)
-    setRenameDraft('')
-  }
 
   const handleTranslate = async (seg: TranscriptSegment) => {
     if (translations[seg.id] || translating.has(seg.id)) return
@@ -83,56 +63,11 @@ export default function Transcript({ segments, speakers, isCapturing, onRenameSp
           const langTag = seg.language ? LANG_LABELS[seg.language] ?? seg.language.toUpperCase().slice(0, 2) : null
           const translated = translations[seg.id]
           const isTranslating = translating.has(seg.id)
-          const speakerEntry = seg.speakerSlot ? speakers.find(s => s.id === seg.speakerSlot) : undefined
-          const isMe = speakerEntry?.isUser === true
-          const baseName = seg.speakerName ?? seg.speakerSlot ?? (seg.speaker === 'mic' ? 'In-Room' : 'Remote')
-          const displayName = isMe ? `You (${baseName})` : baseName
-          const speakerColor = seg.speakerColor ?? 'var(--primary)'
-          // All slots with a speakerSlot are renamable
-          const renamableSlot = seg.speakerSlot ?? null
-          const isRenaming = renamableSlot !== null && renamingSlot === renamableSlot
 
           return (
             <div key={seg.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--border-subtle)', opacity: seg.isFinal ? 1 : 0.5 }}>
-              {/* Speaker label + language tag */}
+              {/* Timestamp + language only — no speaker labels during live call */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                {isRenaming ? (
-                  <input
-                    ref={renameInputRef}
-                    value={renameDraft}
-                    onChange={e => setRenameDraft(e.target.value)}
-                    onBlur={() => commitRename(renamableSlot!, renameDraft)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') commitRename(renamableSlot!, renameDraft)
-                      if (e.key === 'Escape') { setRenamingSlot(null); setRenameDraft('') }
-                    }}
-                    style={{
-                      fontSize: 10, fontWeight: 700, color: speakerColor,
-                      textTransform: 'uppercase', letterSpacing: '0.04em',
-                      background: 'var(--surface-2)', border: '1px solid var(--border-1)',
-                      borderRadius: 3, padding: '1px 4px', outline: 'none', width: 100
-                    }}
-                  />
-                ) : (
-                  <span
-                    onClick={() => {
-                      if (renamableSlot && onRenameSpeaker) {
-                        setRenamingSlot(renamableSlot)
-                        setRenameDraft(displayName)
-                      }
-                    }}
-                    title={renamableSlot ? 'Click to rename' : undefined}
-                    style={{
-                      fontSize: 10, fontWeight: 700, color: speakerColor,
-                      textTransform: 'uppercase', letterSpacing: '0.04em',
-                      cursor: renamableSlot ? 'pointer' : 'default'
-                    }}
-                  >
-                    {displayName}
-                    {renamableSlot && <span style={{ marginLeft: 3, opacity: 0.4, fontSize: 9 }}>✎</span>}
-                  </span>
-                )}
-
                 {langTag && (
                   <span style={{
                     fontSize: 8, fontWeight: 700, color: 'var(--ink-3)',

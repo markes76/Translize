@@ -143,13 +143,11 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
           speakers={speakers}
           onAddSpeaker={addSpeaker}
           onRenameSpeaker={renameSpeaker}
-          onMarkAsMe={markAsMe}
-          onUnmarkMe={unmarkMe}
         />
 
         {/* Center: Transcript */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Transcript segments={segments} speakers={speakers} isCapturing={isCapturing} onRenameSpeaker={renameSpeaker} />
+          <Transcript segments={segments} isCapturing={isCapturing} />
         </div>
 
         {/* Right: Knowledge + Context */}

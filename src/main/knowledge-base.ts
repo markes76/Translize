@@ -120,8 +120,11 @@ export function setupKnowledgeBaseIpc(): void {
   ipcMain.handle('knowledge:detect-question', async (_e, transcript: string): Promise<string | null> => {
     if (!transcript || transcript.length < 10) return null
     try {
-      return await detectQuestion(transcript)
-    } catch {
+      const result = await detectQuestion(transcript)
+      console.log('[Knowledge] detect-question:', JSON.stringify(transcript.slice(0, 80)), '→', result)
+      return result
+    } catch (err) {
+      console.error('[Knowledge] detect-question failed:', err)
       return null
     }
   })

@@ -1,18 +1,20 @@
 // OpenAI Realtime API — Dual-Channel WebSocket transcription service
 //
 // Architecture: TWO separate Realtime API sessions, both always active
-//   Session 1 (mic):    in-room audio → slots mic-1, mic-2... labeled "In-Room N"
-//   Session 2 (system): remote audio  → slots rem-1, rem-2... labeled "Remote N"
+//   Session 1 (mic):    in-room audio → unified spk-N slots
+//   Session 2 (system): remote audio  → unified spk-N slots (same pool)
 //
-// Both channels run gap-based diarization. Speakers appear as they speak.
-// The user can mark any slot as "Me" during or after the call.
+// Speaker identification uses neural voice embeddings (sherpa-onnx) running in the main
+// process. Each channel accumulates audio buffers per OpenAI item_id. When a segment
+// finalizes, those buffers are forwarded to the main process for embedding extraction
+// and cosine-similarity matching.
 //
 // Audio format: Int16 PCM, 24kHz, mono.
 
 export type TranscriptSegment = {
   id: string
   speaker: 'mic' | 'sys'            // which physical channel
-  speakerSlot?: string              // 'mic-1'..'mic-15' or 'rem-1'..'rem-15'
+  speakerSlot?: string              // 'spk-1'..'spk-30' unified across both channels
   speakerName?: string
   speakerColor?: string
   text: string
@@ -23,6 +25,9 @@ export type TranscriptSegment = {
 
 export type TranscriptCallback = (segment: TranscriptSegment) => void
 export type StatusCallback = (status: 'connecting' | 'connected' | 'disconnected' | 'error', detail?: string) => void
+// Called when a segment finalizes with the raw audio buffers captured during that item.
+// The receiver (hook) calls the main-process speaker diarizer and updates the segment slot.
+export type AudioReadyCallback = (segId: string, channel: 'mic' | 'sys', buffers: ArrayBuffer[]) => void
 
 const REALTIME_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview'
 const MAX_RETRIES = 5
@@ -47,17 +52,15 @@ function rmsEnergy(buffer: ArrayBuffer): number {
 
 const SILENCE_THRESHOLD = 200
 
-// Gaps longer than this between utterances may indicate a speaker change
-const SPEAKER_CHANGE_GAP_MS = 5000
-// Maximum distinct speaker slots per channel
-const MAX_SPEAKER_SLOTS = 15
+// Max audio buffers to keep per VAD turn (80 × 100ms = 8s max per utterance)
+const MAX_AUDIO_BUFFERS_PER_TURN = 80
 
 let idCounter = 0
 function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${idCounter++}`
 }
 
-// A single-channel Realtime API session — always diarizes
+// A single-channel Realtime API session with neural speaker diarization
 class RealtimeChannel {
   private ws: WebSocket | null = null
   private retryCount = 0
@@ -69,17 +72,22 @@ class RealtimeChannel {
   private languages: string[]
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
+  private onAudioReady: AudioReadyCallback
 
-  // Diarization state
-  private currentSlot = 1
-  private slotCount = 1
-  private lastSegmentTime = 0
+  // VAD-turn-based audio accumulation for speaker embedding.
+  // currentTurnBuffers: audio collected during the CURRENT VAD speech turn (speech_started → speech_stopped).
+  // completedTurnBuffers: frozen snapshot of the last completed turn, used when item completes.
+  private currentTurnBuffers: ArrayBuffer[] = []
+  private completedTurnBuffers: ArrayBuffer[] = []
+  // Maps item_id → the turn buffer snapshot captured when that item first appeared
+  private itemTurnSnapshot = new Map<string, ArrayBuffer[]>()
 
-  constructor(channel: 'mic' | 'sys', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
+  constructor(channel: 'mic' | 'sys', onTranscript: TranscriptCallback, onStatus: StatusCallback, onAudioReady: AudioReadyCallback, languages: string[] = []) {
     this.channel = channel
     this.slotPrefix = channel === 'mic' ? 'mic' : 'rem'
     this.onTranscript = onTranscript
     this.onStatus = onStatus
+    this.onAudioReady = onAudioReady
     this.languages = languages
   }
 
@@ -137,6 +145,11 @@ class RealtimeChannel {
     // Gate silent system-audio chunks to reduce noise
     if (this.channel === 'sys' && rmsEnergy(buffer) < SILENCE_THRESHOLD) return
     this.send({ type: 'input_audio_buffer.append', audio: base64FromInt16(buffer) })
+    // Accumulate audio for the current VAD turn
+    this.currentTurnBuffers.push(buffer.slice(0))
+    if (this.currentTurnBuffers.length > MAX_AUDIO_BUFFERS_PER_TURN) {
+      this.currentTurnBuffers.shift()
+    }
   }
 
   private handleEvent(event: Record<string, unknown>): void {
@@ -144,20 +157,37 @@ class RealtimeChannel {
 
     if (type === 'error') {
       console.error(`[Realtime:${this.channel}]`, event.error)
-    } else if (type === 'input_audio_buffer.speech_started' || type === 'input_audio_buffer.speech_stopped') {
-      console.log(`[Realtime:${this.channel}] VAD:`, type)
     }
 
+
     switch (type) {
+      case 'input_audio_buffer.speech_started': {
+        // New VAD turn beginning — reset current turn accumulator
+        this.currentTurnBuffers = []
+        break
+      }
+      case 'input_audio_buffer.speech_stopped': {
+        // VAD turn complete — freeze this turn's audio as the completed snapshot
+        // Deep-copy the buffers so subsequent turns don't overwrite them
+        this.completedTurnBuffers = this.currentTurnBuffers.map(b => b.slice(0))
+        break
+      }
       case 'conversation.item.input_audio_transcription.delta': {
         const itemId = event.item_id as string
         const delta = event.delta as string
         if (!delta) break
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          const speakerSlot = `${this.slotPrefix}-${this.currentSlot}`
+          // Placeholder slot — will be updated when diarizer responds
+          const speakerSlot = `${this.slotPrefix}-pending`
           seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
           this.pendingSegments.set(itemId, seg)
+          // Snapshot the completed turn audio when this item first appears.
+          // completedTurnBuffers contains audio from the VAD turn that produced this transcript.
+          const snapshot = this.completedTurnBuffers.length > 0
+            ? this.completedTurnBuffers.map(b => b.slice(0))
+            : this.currentTurnBuffers.map(b => b.slice(0))
+          this.itemTurnSnapshot.set(itemId, snapshot)
         }
         seg.text += delta
         this.onTranscript({ ...seg })
@@ -168,7 +198,7 @@ class RealtimeChannel {
         const transcript = event.transcript as string
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          const speakerSlot = `${this.slotPrefix}-${this.currentSlot}`
+          const speakerSlot = `${this.slotPrefix}-pending`
           seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
         }
         seg.text = transcript ?? seg.text
@@ -176,14 +206,11 @@ class RealtimeChannel {
         this.onTranscript({ ...seg })
         this.pendingSegments.delete(itemId)
 
-        // Gap-based speaker slot advancement
-        const now = Date.now()
-        const gap = this.lastSegmentTime > 0 ? now - this.lastSegmentTime : 0
-        if (gap > SPEAKER_CHANGE_GAP_MS && this.slotCount < MAX_SPEAKER_SLOTS) {
-          this.slotCount++
-          this.currentSlot = this.slotCount
-        }
-        this.lastSegmentTime = now
+        // Use the turn snapshot for this item, fall back to current turn
+        const audioBuffers = this.itemTurnSnapshot.get(itemId)
+          ?? this.completedTurnBuffers.map(b => b.slice(0))
+        this.itemTurnSnapshot.delete(itemId)
+        this.onAudioReady(seg.id, this.channel, audioBuffers)
         break
       }
       case 'error': {
@@ -206,17 +233,14 @@ class RealtimeChannel {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj))
   }
 
-  resetDiarization(): void {
-    this.currentSlot = 1
-    this.slotCount = 1
-    this.lastSegmentTime = 0
-  }
-
   disconnect(): void {
     this.stopped = true
     if (this.retryTimeout) { clearTimeout(this.retryTimeout); this.retryTimeout = null }
     if (this.ws) { this.ws.close(); this.ws = null }
     this.pendingSegments.clear()
+    this.itemTurnSnapshot.clear()
+    this.currentTurnBuffers = []
+    this.completedTurnBuffers = []
   }
 }
 
@@ -226,13 +250,15 @@ export class RealtimeTranscriptionService {
   private sysChannel: RealtimeChannel | null = null
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
+  private onAudioReady: AudioReadyCallback
   private languages: string[]
   private micConnected = false
   private sysConnected = false
 
-  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
+  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, onAudioReady: AudioReadyCallback, languages: string[] = []) {
     this.onTranscript = onTranscript
     this.onStatus = onStatus
+    this.onAudioReady = onAudioReady
     this.languages = languages
   }
 
@@ -243,12 +269,12 @@ export class RealtimeTranscriptionService {
     this.micChannel = new RealtimeChannel('mic', this.onTranscript, (status) => {
       if (status === 'connected') this.micConnected = true
       this.updateOverallStatus()
-    }, this.languages)
+    }, this.onAudioReady, this.languages)
 
     this.sysChannel = new RealtimeChannel('sys', this.onTranscript, (status) => {
       if (status === 'connected') this.sysConnected = true
       this.updateOverallStatus()
-    }, this.languages)
+    }, this.onAudioReady, this.languages)
 
     this.onStatus('connecting', 'Opening dual channels...')
     this.micChannel.connect()
