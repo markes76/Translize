@@ -1,5 +1,62 @@
 import React, { useState, useEffect, useRef } from 'react'
 
+interface Contact {
+  id: string
+  name: string
+  company?: string
+  email?: string
+  source: string
+}
+
+interface ImportSource {
+  id: string
+  label: string
+  icon: string
+  fileType: string
+  steps: string[]
+}
+
+const IMPORT_SOURCES: ImportSource[] = [
+  {
+    id: 'google-contacts',
+    label: 'Google Contacts',
+    icon: '👤',
+    fileType: 'vCard (.vcf) or CSV',
+    steps: [
+      'Open contacts.google.com in your browser',
+      'Click the menu icon (☰) → "Export"',
+      'Choose "Google CSV" or "vCard" format',
+      'Click "Export" — a file will download',
+      'Click "Choose File" below and select that file'
+    ]
+  },
+  {
+    id: 'google-sheets',
+    label: 'Google Sheets',
+    icon: '📊',
+    fileType: 'CSV',
+    steps: [
+      'Open your contact spreadsheet in Google Sheets',
+      'Make sure you have columns: Name, Company (or Organization), Email',
+      'Click File → Download → "Comma Separated Values (.csv)"',
+      'Click "Choose File" below and select the downloaded file'
+    ]
+  },
+  {
+    id: 'microsoft',
+    label: 'Microsoft / Outlook',
+    icon: '📧',
+    fileType: 'CSV',
+    steps: [
+      'Open Outlook → File → Open & Export → Import/Export',
+      'Choose "Export to a file" → "Comma Separated Values"',
+      'Select "Contacts" folder → choose save location → Finish',
+      'Alternatively: go to people.live.com → Manage → Export contacts',
+      'Click "Choose File" below and select the exported CSV'
+    ]
+  }
+]
+
 interface Props {
   prefill?: { name?: string; docPaths?: string[]; notebookId?: string; mode?: 'local' | 'notebook' | 'both' }
   onStart: (session: { id: string; name?: string; docPaths: string[]; mode: string; notebookId?: string }) => void
@@ -35,8 +92,73 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
   const removeRef = useRef<(() => void) | null>(null)
   const needsNlm = mode === 'notebook' || mode === 'both'
 
-  useEffect(() => { checkNlm(); return () => { removeRef.current?.() } }, [])
+  // Contact autocomplete
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<Contact[]>([])
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
+
+  // Import panel
+  const [expandedSource, setExpandedSource] = useState<string | null>(null)
+  const [importStatus, setImportStatus] = useState<Record<string, string>>({})
+  const [importing, setImporting] = useState<string | null>(null)
+
+  useEffect(() => { checkNlm(); loadContacts(); return () => { removeRef.current?.() } }, [])
   useEffect(() => { if (needsNlm && nlmState === 'connected' && notebooks.length === 0) fetchNbs() }, [needsNlm, nlmState])
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node) &&
+          nameInputRef.current && !nameInputRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const loadContacts = async () => {
+    try {
+      const list = await window.translize.contact.list()
+      setContacts(list)
+    } catch {}
+  }
+
+  const handleNameChange = (val: string) => {
+    setName(val)
+    if (!val.trim()) { setShowSuggestions(false); return }
+    const lower = val.toLowerCase()
+    const matches = contacts.filter(c =>
+      c.name.toLowerCase().includes(lower) ||
+      (c.company ?? '').toLowerCase().includes(lower)
+    ).slice(0, 8)
+    setSuggestions(matches)
+    setShowSuggestions(matches.length > 0)
+  }
+
+  const selectContact = (c: Contact) => {
+    setName(c.company ? `${c.name} — ${c.company}` : c.name)
+    setShowSuggestions(false)
+  }
+
+  const handleImport = async (sourceId: string) => {
+    setImporting(sourceId)
+    setImportStatus(prev => ({ ...prev, [sourceId]: 'Choosing file...' }))
+    try {
+      const result = await window.translize.contact.pickAndImport(sourceId)
+      if (result.canceled) {
+        setImportStatus(prev => ({ ...prev, [sourceId]: '' }))
+      } else {
+        setImportStatus(prev => ({ ...prev, [sourceId]: `✓ ${result.count} new contacts imported (${result.total} total)` }))
+        await loadContacts()
+      }
+    } catch (e) {
+      setImportStatus(prev => ({ ...prev, [sourceId]: `Error: ${(e as Error).message}` }))
+    }
+    setImporting(null)
+  }
 
   const checkNlm = async () => {
     try {
@@ -97,10 +219,114 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
       </div>
       <div style={S.content}>
         <div style={S.inner}>
-          {/* Name */}
-          <div style={S.section}>
+
+          {/* Contact Name with autocomplete */}
+          <div style={{ ...S.section, position: 'relative' }}>
             <label style={S.label}>Contact or Company Name (optional)</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jane Smith, Acme Corp" style={S.input} />
+            <input
+              ref={nameInputRef}
+              value={name}
+              onChange={e => handleNameChange(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+              placeholder="e.g. Jane Smith, Acme Corp"
+              style={S.input}
+            />
+            {showSuggestions && (
+              <div ref={suggestionsRef} style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                background: 'var(--surface-raised)', border: '1px solid var(--border-1)',
+                borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)',
+                maxHeight: 220, overflow: 'auto', marginTop: 2
+              }}>
+                {suggestions.map(c => (
+                  <div key={c.id} onMouseDown={() => selectContact(c)} style={{
+                    padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                  }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--primary-subtle)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>{c.name}</div>
+                      {c.company && <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{c.company}</div>}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--ink-4)', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 8 }}>
+                      {c.source === 'google-contacts' ? 'Google' : c.source === 'google-sheets' ? 'Sheets' : c.source === 'microsoft' ? 'Outlook' : c.source}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Import contacts section */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 6, fontWeight: 600 }}>
+                {contacts.length > 0 ? `${contacts.length} contacts imported` : 'Import contacts from:'}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {IMPORT_SOURCES.map(src => (
+                  <button
+                    key={src.id}
+                    onClick={() => setExpandedSource(expandedSource === src.id ? null : src.id)}
+                    style={{
+                      flex: 1, padding: '6px 8px',
+                      background: expandedSource === src.id ? 'var(--primary-subtle)' : 'var(--surface-2)',
+                      border: `1px solid ${expandedSource === src.id ? 'var(--primary)' : 'var(--border-1)'}`,
+                      borderRadius: 'var(--radius-xs)', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 600, color: expandedSource === src.id ? 'var(--primary)' : 'var(--ink-2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
+                    }}
+                  >
+                    <span>{src.icon}</span>
+                    <span style={{ whiteSpace: 'nowrap' as const }}>{src.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Expanded import instructions */}
+              {expandedSource && (() => {
+                const src = IMPORT_SOURCES.find(s => s.id === expandedSource)!
+                const status = importStatus[src.id]
+                return (
+                  <div style={{
+                    marginTop: 8, padding: '14px 16px',
+                    background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+                    borderRadius: 'var(--radius-sm)'
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 10 }}>
+                      How to export from {src.label}
+                    </div>
+                    <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
+                      {src.steps.map((step, i) => (
+                        <li key={i} style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5 }}>{step}</li>
+                      ))}
+                    </ol>
+                    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        onClick={() => handleImport(src.id)}
+                        disabled={importing === src.id}
+                        style={{
+                          padding: '8px 16px',
+                          background: importing === src.id ? 'var(--ink-3)' : 'var(--primary)',
+                          color: 'white', border: 'none', borderRadius: 'var(--radius-xs)',
+                          fontSize: 12, fontWeight: 600, cursor: importing === src.id ? 'default' : 'pointer'
+                        }}
+                      >
+                        {importing === src.id ? 'Importing...' : `Choose ${src.fileType} File`}
+                      </button>
+                      {status && (
+                        <span style={{
+                          fontSize: 11,
+                          color: status.startsWith('✓') ? 'var(--positive)' : status.startsWith('Error') ? 'var(--negative)' : 'var(--ink-3)'
+                        }}>
+                          {status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           </div>
 
           {/* Documents */}
@@ -162,16 +388,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
                   border: `2px solid ${mode === m.value ? 'var(--primary)' : 'var(--border-1)'}`,
                   borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center' as const, transition: 'all 0.15s'
                 }}>
-                  <div style={{
-                    fontSize: m.icon ? 22 : 12,
-                    marginBottom: 8,
-                    minHeight: 28,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--ink-3)',
-                    fontWeight: m.value === 'local' ? 500 : undefined
-                  }}>{m.icon || null}</div>
+                  <div style={{ fontSize: m.icon ? 22 : 12, marginBottom: 8, minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-3)', fontWeight: m.value === 'local' ? 500 : undefined }}>{m.icon || null}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>{m.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--ink-2)', lineHeight: 1.4 }}>{m.desc}</div>
                 </button>

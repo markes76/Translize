@@ -11,6 +11,7 @@ import { setupTavilyIpc } from './tavily-search'
 import { setupGeminiIpc } from './gemini-service'
 import { setupPlatformSkillIpc } from './platform-skill'
 import { setupAudioBufferIpc } from './audio-buffer'
+import { setupContactIpc } from './contact-store'
 import { keychainGet } from './keychain'
 import { readConfig } from './config'
 
@@ -81,6 +82,7 @@ app.whenReady().then(() => {
   setupGeminiIpc()
   setupPlatformSkillIpc()
   setupAudioBufferIpc()
+  setupContactIpc()
 
   if (!isMacOSSupported()) {
     // Create minimal window to show the version error

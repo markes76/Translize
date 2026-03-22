@@ -98,6 +98,20 @@ const api = {
       ipcRenderer.invoke('speaker:detect-segment', segmentText, speakerSlot, contextLines, existingSlotNames),
     getColors: (): Promise<string[]> => ipcRenderer.invoke('speaker:get-colors')
   },
+  contact: {
+    list: (): Promise<Array<{ id: string; name: string; company?: string; email?: string; phone?: string; source: string }>> =>
+      ipcRenderer.invoke('contact:list'),
+    importCsv: (csvText: string, source: string): Promise<{ count: number; total: number }> =>
+      ipcRenderer.invoke('contact:import-csv', csvText, source),
+    importVcf: (vcfText: string, source: string): Promise<{ count: number; total: number }> =>
+      ipcRenderer.invoke('contact:import-vcf', vcfText, source),
+    delete: (id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('contact:delete', id),
+    clearSource: (source: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('contact:clear-source', source),
+    pickAndImport: (source: string): Promise<{ count?: number; total?: number; canceled: boolean }> =>
+      ipcRenderer.invoke('contact:pick-and-import', source)
+  },
   followup: {
     add: (question: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('followup:add', question),
     list: (): Promise<string[]> => ipcRenderer.invoke('followup:list'),

@@ -2,13 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react'
 
 interface Props { onBack: () => void }
 
-type SettingsSection = 'general' | 'audio' | 'keys' | 'knowledge' | 'appearance' | 'advanced'
+type SettingsSection = 'general' | 'audio' | 'keys' | 'knowledge' | 'contacts' | 'appearance' | 'advanced'
 
 const SECTIONS: { id: SettingsSection; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: 'G' },
   { id: 'audio', label: 'Audio & Transcription', icon: 'A' },
   { id: 'keys', label: 'API Keys & Integrations', icon: 'K' },
   { id: 'knowledge', label: 'Knowledge Base', icon: 'KB' },
+  { id: 'contacts', label: 'Contacts', icon: '👤' },
   { id: 'appearance', label: 'Appearance', icon: 'T' },
   { id: 'advanced', label: 'Advanced', icon: 'X' }
 ]
@@ -351,6 +352,10 @@ export default function Settings({ onBack }: Props): React.ReactElement {
               </SettingsPanel>
             )}
 
+            {activeSection === 'contacts' && (
+              <ContactsSettingsPanel />
+            )}
+
             {activeSection === 'appearance' && (
               <SettingsPanel title="Appearance" desc="Visual preferences">
                 <SettingRow label="Color Theme" desc="Choose light, dark, or follow your macOS system preference. This setting is independent of your system appearance.">
@@ -547,4 +552,96 @@ function ResetButton(): React.ReactElement {
 const inputStyle: React.CSSProperties = {
   flex: 1, padding: '8px 12px', background: 'var(--surface-2)', border: '1px solid var(--border-1)',
   borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', outline: 'none'
+}
+
+// ── Contacts Settings Panel ────────────────────────────────────────────────
+
+interface ContactEntry {
+  id: string; name: string; company?: string; email?: string; source: string
+}
+
+function ContactsSettingsPanel(): React.ReactElement {
+  const [contacts, setContacts] = useState<ContactEntry[]>([])
+  const [clearing, setClearing] = useState<string | null>(null)
+
+  const load = async () => {
+    try { setContacts(await window.translize.contact.list()) } catch {}
+  }
+
+  useEffect(() => { load() }, [])
+
+  const SOURCE_LABELS: Record<string, string> = {
+    'google-contacts': 'Google Contacts',
+    'google-sheets': 'Google Sheets',
+    'microsoft': 'Microsoft / Outlook',
+    'manual': 'Manual'
+  }
+
+  // Group by source
+  const bySource = contacts.reduce<Record<string, ContactEntry[]>>((acc, c) => {
+    const key = c.source
+    if (!acc[key]) acc[key] = []
+    acc[key].push(c)
+    return acc
+  }, {})
+
+  const clearSource = async (source: string) => {
+    setClearing(source)
+    await window.translize.contact.clearSource(source)
+    await load()
+    setClearing(null)
+  }
+
+  return (
+    <div style={{ padding: 'var(--sp-6)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+      <div>
+        <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>Contacts</div>
+        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)' }}>
+          {contacts.length} contacts imported total. Import more from the New Call screen.
+        </div>
+      </div>
+
+      {contacts.length === 0 ? (
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-3)', fontSize: 'var(--text-sm)', background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-1)' }}>
+          No contacts imported yet. Open New Call to import from Google Contacts, Google Sheets, or Microsoft Outlook.
+        </div>
+      ) : (
+        Object.entries(bySource).map(([source, list]) => (
+          <div key={source} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink-1)' }}>
+                  {SOURCE_LABELS[source] ?? source}
+                </span>
+                <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{list.length} contacts</span>
+              </div>
+              <button
+                onClick={() => clearSource(source)}
+                disabled={clearing === source}
+                style={{ padding: '4px 10px', background: 'var(--negative-subtle)', border: '1px solid var(--negative)', borderRadius: 'var(--radius-xs)', color: 'var(--negative)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {clearing === source ? 'Removing...' : 'Remove All'}
+              </button>
+            </div>
+            <div style={{ maxHeight: 200, overflow: 'auto' }}>
+              {list.slice(0, 50).map(c => (
+                <div key={c.id} style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)', fontWeight: 500 }}>{c.name}</span>
+                    {c.company && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{c.company}</span>}
+                  </div>
+                  {c.email && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.email}</span>}
+                </div>
+              ))}
+              {list.length > 50 && (
+                <div style={{ padding: '8px 16px', fontSize: 'var(--text-xs)', color: 'var(--ink-3)', fontStyle: 'italic' }}>
+                  ...and {list.length - 50} more
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
 }
