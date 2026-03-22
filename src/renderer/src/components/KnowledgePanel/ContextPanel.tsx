@@ -256,7 +256,17 @@ export default function ContextPanel({ sessionId, notebookId, segments, isCaptur
                 <div style={{ fontSize: 14, color: 'var(--warning)', fontWeight: 500, marginBottom: 14 }}>No answer found in your documents or NotebookLM</div>
               )}
               {card.answer && (
-                <div style={{ fontSize: 18, fontWeight: 500, lineHeight: 1.55, color: 'var(--ink-1)', marginBottom: 16 }}>{card.answer}</div>
+                <div style={{ fontSize: 18, fontWeight: 500, lineHeight: 1.55, color: 'var(--ink-1)', marginBottom: card.fromNlm && notebookId ? 8 : 16 }}>{card.answer}</div>
+              )}
+              {card.fromNlm && notebookId && card.answer && (
+                <div style={{ marginBottom: 12 }}>
+                  <button
+                    onClick={() => window.translize.shell.openUrl(`https://notebooklm.google.com/notebook/${notebookId}`)}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--purple)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                  >
+                    Open in NotebookLM →
+                  </button>
+                </div>
               )}
 
               {/* Source + Provenance Badges */}
