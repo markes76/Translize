@@ -629,8 +629,18 @@ const SOURCE_LABELS: Record<string, string> = {
   'manual': 'Manual'
 }
 
+function filterContacts(contacts: ContactEntry[], query: string): ContactEntry[] {
+  if (!query.trim()) return contacts
+  const tokens = query.toLowerCase().trim().split(/\s+/)
+  return contacts.filter(c => {
+    const fields = [c.name, c.company, c.jobTitle, c.email, c.city, c.country, c.state].filter(Boolean).map(f => f!.toLowerCase())
+    return tokens.every(t => fields.some(f => f.includes(t)))
+  })
+}
+
 function ContactsSettingsPanel(): React.ReactElement {
   const [contacts, setContacts] = useState<ContactEntry[]>([])
+  const [search, setSearch] = useState('')
   const [clearing, setClearing] = useState<string | null>(null)
   const [expandedSource, setExpandedSource] = useState<string | null>(null)
   const [importing, setImporting] = useState<string | null>(null)
@@ -676,7 +686,8 @@ function ContactsSettingsPanel(): React.ReactElement {
   }
 
   // Group imported contacts by source
-  const bySource = contacts.reduce<Record<string, ContactEntry[]>>((acc, c) => {
+  const filtered = filterContacts(contacts, search)
+  const bySource = filtered.reduce<Record<string, ContactEntry[]>>((acc, c) => {
     if (!acc[c.source]) acc[c.source] = []
     acc[c.source].push(c)
     return acc
@@ -765,11 +776,40 @@ function ContactsSettingsPanel(): React.ReactElement {
       </div>
 
       {/* Imported contacts list grouped by source */}
-      {Object.keys(bySource).length > 0 && (
+      {contacts.length > 0 && (
         <div>
-          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-            Imported Contacts
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Imported Contacts
+            </div>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>
+              {search ? `${filtered.length} of ${contacts.length}` : contacts.length}
+            </span>
           </div>
+          {/* Search bar */}
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--ink-4)', pointerEvents: 'none' }}>🔍</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, company, email, city…"
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '8px 12px 8px 32px',
+                background: 'var(--surface-2)', border: '1px solid var(--border-1)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)',
+                fontSize: 'var(--text-sm)', outline: 'none'
+              }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--ink-4)', cursor: 'pointer', fontSize: 14, padding: 2 }}>✕</button>
+            )}
+          </div>
+          {Object.keys(bySource).length === 0 && search && (
+            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 'var(--text-sm)', fontStyle: 'italic' }}>
+              No contacts match "{search}"
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Object.entries(bySource).map(([source, list]) => (
               <div key={source} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>

@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react'
 
+// Multi-field tokenized search: every word in query must match at least one field
+function filterContacts(contacts: Contact[], query: string): Contact[] {
+  const tokens = query.toLowerCase().trim().split(/\s+/)
+  return contacts.filter(c => {
+    const fields = [c.name, c.company, c.jobTitle, c.email, c.city, c.country].filter(Boolean).map(f => f!.toLowerCase())
+    return tokens.every(t => fields.some(f => f.includes(t)))
+  })
+}
+
 interface Contact {
   id: string
   name: string
@@ -132,11 +141,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
   const handleNameChange = (val: string) => {
     setName(val)
     if (!val.trim()) { setShowSuggestions(false); return }
-    const lower = val.toLowerCase()
-    const matches = contacts.filter(c =>
-      c.name.toLowerCase().includes(lower) ||
-      (c.company ?? '').toLowerCase().includes(lower)
-    ).slice(0, 8)
+    const matches = filterContacts(contacts, val).slice(0, 8)
     setSuggestions(matches)
     setShowSuggestions(matches.length > 0)
   }

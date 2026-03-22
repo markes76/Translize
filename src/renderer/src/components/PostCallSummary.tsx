@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { TranscriptSegment } from '../services/openai-realtime'
 import { generateSummary, CallSummary } from '../services/summarizer'
 import { analyzeSentiment, SentimentAnalysis } from '../services/sentiment-engine'
@@ -12,6 +12,10 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
   const [contactName, setContactName] = useState(sessionName ?? '')
   const [editingContact, setEditingContact] = useState(false)
   const [contactDraft, setContactDraft] = useState('')
+  const [allContacts, setAllContacts] = useState<Array<{ id: string; name: string; company?: string; jobTitle?: string; email?: string; city?: string; country?: string }>>([])
+  const [contactSuggestions, setContactSuggestions] = useState<typeof allContacts>([])
+  const contactInputRef = useRef<HTMLInputElement>(null)
+  const contactDropRef = useRef<HTMLDivElement>(null)
   const [summary, setSummary] = useState<CallSummary | null>(null)
   const [sentiment, setSentiment] = useState<SentimentAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
@@ -63,10 +67,39 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
     })()
   }, [segments])
 
+  // Load contacts for search
+  useEffect(() => {
+    window.translize.contact.list().then(list => setAllContacts(list as typeof allContacts)).catch(() => {})
+  }, [])
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    if (!editingContact) return
+    const handler = (e: MouseEvent) => {
+      if (!contactInputRef.current?.contains(e.target as Node) && !contactDropRef.current?.contains(e.target as Node)) {
+        setContactSuggestions([])
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [editingContact])
+
+  const handleContactDraftChange = (val: string) => {
+    setContactDraft(val)
+    if (!val.trim()) { setContactSuggestions([]); return }
+    const tokens = val.toLowerCase().trim().split(/\s+/)
+    const matches = allContacts.filter(c => {
+      const fields = [c.name, c.company, c.jobTitle, c.email, c.city, c.country].filter(Boolean).map(f => f!.toLowerCase())
+      return tokens.every(t => fields.some(f => f.includes(t)))
+    }).slice(0, 8)
+    setContactSuggestions(matches)
+  }
+
   const saveContact = async (name: string) => {
     const trimmed = name.trim()
     setContactName(trimmed)
     setEditingContact(false)
+    setContactSuggestions([])
     await window.translize.session.update(sessionId, { name: trimmed || undefined })
   }
 
@@ -114,15 +147,43 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
         <div style={{ marginTop: V.sp2, display: 'flex', alignItems: 'center', gap: V.sp2 }}>
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)', fontWeight: 600 }}>Contact:</span>
           {editingContact ? (
-            <input
-              autoFocus
-              value={contactDraft}
-              onChange={e => setContactDraft(e.target.value)}
-              onBlur={() => saveContact(contactDraft)}
-              onKeyDown={e => { if (e.key === 'Enter') saveContact(contactDraft); if (e.key === 'Escape') setEditingContact(false) }}
-              placeholder="Enter contact name..."
-              style={{ padding: '2px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontWeight: 600, outline: 'none', width: 200 }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                ref={contactInputRef}
+                autoFocus
+                value={contactDraft}
+                onChange={e => handleContactDraftChange(e.target.value)}
+                onBlur={() => { if (contactSuggestions.length === 0) saveContact(contactDraft) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveContact(contactDraft)
+                  if (e.key === 'Escape') { setEditingContact(false); setContactSuggestions([]) }
+                }}
+                placeholder="Search or type contact name..."
+                style={{ padding: '2px 8px', background: 'var(--surface-2)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', fontWeight: 600, outline: 'none', width: 240 }}
+              />
+              {contactSuggestions.length > 0 && (
+                <div ref={contactDropRef} style={{
+                  position: 'absolute', top: '100%', left: 0, width: 300,
+                  background: 'var(--surface-raised)', border: '1px solid var(--border-1)',
+                  borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)',
+                  zIndex: 50, marginTop: 2
+                }}>
+                  {contactSuggestions.map(c => (
+                    <div
+                      key={c.id}
+                      onMouseDown={() => saveContact(c.company ? `${c.name} — ${c.company}` : c.name)}
+                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--primary-subtle)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>{c.name}</div>
+                      {(c.jobTitle || c.company) && <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{[c.jobTitle, c.company].filter(Boolean).join(' · ')}</div>}
+                      {(c.email || c.city) && <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>{[c.email, c.city].filter(Boolean).join(' · ')}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <button
               onClick={() => { setContactDraft(contactName); setEditingContact(true) }}
