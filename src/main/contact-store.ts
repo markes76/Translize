@@ -106,22 +106,43 @@ function col(row: string[], idx: number): string | undefined {
   return idx !== -1 ? (row[idx] ?? '').trim() || undefined : undefined
 }
 
+// A valid name has at most 1 comma (e.g. "Smith, John") and no semicolons.
+// Anything with more commas is a misparse of an address or structured field.
+function isValidName(s: string): boolean {
+  if (!s) return false
+  const commas = (s.match(/,/g) || []).length
+  const semis  = (s.match(/;/g) || []).length
+  return commas <= 1 && semis === 0
+}
+
+// Strip leading punctuation artifacts like ". Reznik"
+function cleanName(s: string): string {
+  return s.replace(/^[\s.,;:!?]+/, '').trim()
+}
+
 // Handle split first/last name columns, fallback to full-name column
 function buildName(row: string[], headers: string[]): { name: string; firstName?: string; lastName?: string } {
   const firstIdx = findColExact(headers, FIRST_NAME_COLS)
   const lastIdx  = findColExact(headers, LAST_NAME_COLS)
 
-  const firstName = firstIdx !== -1 ? (row[firstIdx] ?? '').trim() : undefined
-  const lastName  = lastIdx  !== -1 ? (row[lastIdx]  ?? '').trim() : undefined
+  let firstName = firstIdx !== -1 ? (row[firstIdx] ?? '').trim() : undefined
+  let lastName  = lastIdx  !== -1 ? (row[lastIdx]  ?? '').trim() : undefined
+
+  // Reject if the "first name" column contains a structured/address value
+  if (firstName && !isValidName(firstName)) firstName = undefined
+  if (lastName  && !isValidName(lastName))  lastName  = undefined
 
   if (firstName || lastName) {
-    const name = `${firstName ?? ''} ${lastName ?? ''}`.trim()
-    return { name, firstName: firstName || undefined, lastName: lastName || undefined }
+    const raw = `${firstName ?? ''} ${lastName ?? ''}`.trim()
+    const name = cleanName(raw)
+    return { name, firstName: firstName ? cleanName(firstName) : undefined, lastName: lastName ? cleanName(lastName) : undefined }
   }
 
   const nameIdx = findCol(headers, NAME_COLS)
-  const full = nameIdx !== -1 ? (row[nameIdx] ?? '').trim() : ''
-  return { name: full }
+  const raw = nameIdx !== -1 ? (row[nameIdx] ?? '').trim() : ''
+  const name = cleanName(raw)
+  if (!isValidName(name)) return { name: '' }
+  return { name }
 }
 
 export function importCSV(csvText: string, source: string): Contact[] {
@@ -260,9 +281,25 @@ export function importVCF(vcfText: string, source: string): Contact[] {
   return contacts
 }
 
+// ── Data migration ────────────────────────────────────────────────────────────
+
+// Remove contacts whose names are parser artifacts (comma/semicolon-heavy garbage).
+// Runs once at startup to clean any data imported before name validation was added.
+function migrateCleanCorruptNames(): void {
+  const contacts = loadContacts()
+  const clean = contacts.filter(c => isValidName(c.name))
+  if (clean.length < contacts.length) {
+    saveContacts(clean)
+    console.log(`[contacts] Removed ${contacts.length - clean.length} corrupt-name entries, ${clean.length} remain`)
+  }
+}
+
 // ── IPC setup ────────────────────────────────────────────────────────────────
 
 export function setupContactIpc(): void {
+  // Auto-clean corrupt entries from pre-validation imports
+  try { migrateCleanCorruptNames() } catch {}
+
   ipcMain.removeHandler('contact:list')
   ipcMain.handle('contact:list', () => loadContacts())
 
