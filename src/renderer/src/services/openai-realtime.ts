@@ -10,6 +10,7 @@
 export type TranscriptSegment = {
   id: string
   speaker: 'you' | 'them'
+  speakerSlot?: string   // e.g. 'them-1', 'them-2' ... 'them-15' for remote voices
   speakerName?: string
   speakerColor?: string
   text: string
@@ -44,6 +45,11 @@ function rmsEnergy(buffer: ArrayBuffer): number {
 
 const SILENCE_THRESHOLD = 200
 
+// Gaps longer than this between 'them' utterances may indicate a new speaker
+const SPEAKER_CHANGE_GAP_MS = 5000
+// Maximum number of distinct remote speaker slots
+const MAX_SPEAKER_SLOTS = 15
+
 let idCounter = 0
 function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${idCounter++}`
@@ -60,6 +66,11 @@ class RealtimeChannel {
   private languages: string[]
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
+
+  // Diarization state (only meaningful for 'them' channel)
+  private currentSlot = 1          // which slot number is currently speaking
+  private slotCount = 1            // total slots allocated so far
+  private lastSegmentTime = 0      // ms timestamp of last completed segment
 
   constructor(channel: 'you' | 'them', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
     this.channel = channel
@@ -143,7 +154,9 @@ class RealtimeChannel {
         if (!delta) break
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          seg = { id: nextId(this.channel), speaker: this.channel, text: '', isFinal: false, timestamp: Date.now() }
+          // Assign speakerSlot for 'them' channel at segment creation time
+          const speakerSlot = this.channel === 'them' ? `them-${this.currentSlot}` : undefined
+          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
           this.pendingSegments.set(itemId, seg)
         }
         seg.text += delta
@@ -155,12 +168,25 @@ class RealtimeChannel {
         const transcript = event.transcript as string
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          seg = { id: nextId(this.channel), speaker: this.channel, text: '', isFinal: false, timestamp: Date.now() }
+          const speakerSlot = this.channel === 'them' ? `them-${this.currentSlot}` : undefined
+          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
         }
         seg.text = transcript ?? seg.text
         seg.isFinal = true
         this.onTranscript({ ...seg })
         this.pendingSegments.delete(itemId)
+
+        // After a finalized segment, update diarization timing for next segment
+        if (this.channel === 'them') {
+          const now = Date.now()
+          const gap = this.lastSegmentTime > 0 ? now - this.lastSegmentTime : 0
+          // Large gap suggests a different speaker may have taken the floor
+          if (gap > SPEAKER_CHANGE_GAP_MS && this.slotCount < MAX_SPEAKER_SLOTS) {
+            this.slotCount++
+            this.currentSlot = this.slotCount
+          }
+          this.lastSegmentTime = now
+        }
         break
       }
       case 'error': {
@@ -181,6 +207,12 @@ class RealtimeChannel {
 
   private send(obj: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj))
+  }
+
+  resetDiarization(): void {
+    this.currentSlot = 1
+    this.slotCount = 1
+    this.lastSegmentTime = 0
   }
 
   disconnect(): void {

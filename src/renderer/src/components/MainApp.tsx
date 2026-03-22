@@ -144,7 +144,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
 
         {/* Center: Transcript */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Transcript segments={segments} isCapturing={isCapturing} />
+          <Transcript segments={segments} isCapturing={isCapturing} onRenameSpeaker={renameSpeaker} />
         </div>
 
         {/* Right: Knowledge + Context */}

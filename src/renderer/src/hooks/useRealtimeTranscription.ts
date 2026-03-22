@@ -32,11 +32,19 @@ export interface TranscriptionActions {
 const MIC_SAMPLE_RATE = 24000
 const MIC_CHUNK_FRAMES = 2400
 
-const DEFAULT_COLORS = [
+export const DEFAULT_COLORS = [
   '#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed',
   '#db2777', '#0891b2', '#65a30d', '#ea580c', '#4f46e5',
   '#be185d', '#0d9488', '#ca8a04', '#9333ea', '#e11d48'
 ]
+
+// How many recent segments to include as context when detecting a speaker name
+const DETECTION_CONTEXT_WINDOW = 4
+
+function slotIndex(slot: string): number {
+  const n = parseInt(slot.replace('them-', ''), 10)
+  return isNaN(n) ? 0 : n - 1
+}
 
 export function useRealtimeTranscription(): TranscriptionState & TranscriptionActions {
   const [status, setStatus] = useState<SessionStatus>('idle')
@@ -55,14 +63,31 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
   const micContextRef = useRef<AudioContext | null>(null)
   const micProcessorRef = useRef<ScriptProcessorNode | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const speakerDetectionRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const nextSpeakerNum = useRef(1)
+
+  // Slot name registry: { 'them-1': 'Sarah', 'them-3': 'John' }
+  // Kept in a ref so detection callbacks can read the latest value without stale closure issues
+  const slotNamesRef = useRef<Record<string, string>>({})
+  // Track which slots already have pending detection to avoid duplicate API calls
+  const detectionInFlightRef = useRef<Set<string>>(new Set())
 
   const handleTranscriptSegment = useCallback((seg: TranscriptSegment) => {
     if (seg.speaker === 'you') {
       seg.speakerName = 'You'
       seg.speakerColor = DEFAULT_COLORS[0]
+    } else if (seg.speakerSlot) {
+      // Apply known name for this slot immediately if we already identified them
+      const knownName = slotNamesRef.current[seg.speakerSlot]
+      if (knownName) {
+        seg.speakerName = knownName
+        seg.speakerColor = DEFAULT_COLORS[slotIndex(seg.speakerSlot) % DEFAULT_COLORS.length]
+      } else {
+        // Fallback label until name is detected
+        const n = slotIndex(seg.speakerSlot) + 1
+        seg.speakerName = `Speaker ${n}`
+        seg.speakerColor = DEFAULT_COLORS[slotIndex(seg.speakerSlot) % DEFAULT_COLORS.length]
+      }
     }
+
     setSegments(prev => {
       const idx = prev.findIndex(s => s.id === seg.id)
       if (idx === -1) return [...prev, seg]
@@ -72,10 +97,104 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     })
   }, [])
 
+  // Fires on every finalized 'them' segment — detects if speaker named themselves
+  const detectSegmentSpeaker = useCallback(async (seg: TranscriptSegment, allSegments: TranscriptSegment[]) => {
+    if (!seg.speakerSlot || !seg.isFinal) return
+    // Skip if name already known for this slot
+    if (slotNamesRef.current[seg.speakerSlot]) return
+    // Skip if a detection is already in flight for this slot
+    if (detectionInFlightRef.current.has(seg.speakerSlot)) return
+
+    detectionInFlightRef.current.add(seg.speakerSlot)
+
+    // Build a small context window of recent final 'them' segments
+    const recentFinal = allSegments
+      .filter(s => s.speaker === 'them' && s.isFinal && s.id !== seg.id)
+      .slice(-DETECTION_CONTEXT_WINDOW)
+      .map(s => `${s.speakerName ?? s.speakerSlot ?? 'them'}: "${s.text}"`)
+
+    try {
+      const result = await window.translize.speaker.detectSegment(
+        seg.text,
+        seg.speakerSlot,
+        recentFinal,
+        { ...slotNamesRef.current }
+      )
+
+      if (result?.name && result.slot) {
+        const slot = result.slot
+        const name = result.name.trim()
+
+        // Register the name in the slot registry
+        slotNamesRef.current[slot] = name
+
+        // Add to speakers list if not already present
+        const colorIdx = slotIndex(slot) % DEFAULT_COLORS.length
+        setSpeakers(prev => {
+          if (prev.some(s => s.name === name)) return prev
+          return [...prev, {
+            id: slot,
+            name,
+            color: DEFAULT_COLORS[colorIdx],
+            isUser: false
+          }]
+        })
+
+        // Retroactively update all segments from this slot
+        setSegments(prev => prev.map(s => {
+          if (s.speakerSlot === slot) {
+            return { ...s, speakerName: name, speakerColor: DEFAULT_COLORS[colorIdx] }
+          }
+          return s
+        }))
+      }
+    } catch { /* detection failure is silent */ } finally {
+      detectionInFlightRef.current.delete(seg.speakerSlot)
+    }
+  }, [])
+
+  // When a new segment arrives and is final, trigger per-segment detection
+  useEffect(() => {
+    const lastFinalThem = [...segments].reverse().find(s => s.speaker === 'them' && s.isFinal && s.speakerSlot)
+    if (lastFinalThem) {
+      detectSegmentSpeaker(lastFinalThem, segments)
+    }
+  }, [segments, detectSegmentSpeaker])
+
+  // Ensure speaker slots with no detected name have an entry in the speakers list
+  useEffect(() => {
+    if (!isCapturing) return
+    const knownSlots = new Set(speakers.map(s => s.id))
+    const unmappedSlots = new Set<string>()
+    for (const seg of segments) {
+      if (seg.speakerSlot && !knownSlots.has(seg.speakerSlot)) {
+        unmappedSlots.add(seg.speakerSlot)
+      }
+    }
+    if (unmappedSlots.size === 0) return
+
+    setSpeakers(prev => {
+      const next = [...prev]
+      for (const slot of unmappedSlots) {
+        if (next.some(s => s.id === slot)) continue
+        const n = slotIndex(slot) + 1
+        const colorIdx = slotIndex(slot) % DEFAULT_COLORS.length
+        next.push({ id: slot, name: `Speaker ${n}`, color: DEFAULT_COLORS[colorIdx], isUser: false })
+      }
+      return next
+    })
+  }, [segments, speakers, isCapturing])
+
   const renameSpeaker = useCallback((id: string, name: string) => {
+    // Update the slot name registry if this is a slot ID
+    if (id.startsWith('them-')) {
+      slotNamesRef.current[id] = name
+    }
     setSpeakers(prev => prev.map(s => s.id === id ? { ...s, name } : s))
     setSegments(prev => prev.map(s => {
-      if (s.speakerName === speakers.find(sp => sp.id === id)?.name) {
+      const matchBySlot = s.speakerSlot === id
+      const matchByOldName = s.speakerName === speakers.find(sp => sp.id === id)?.name
+      if (matchBySlot || matchByOldName) {
         return { ...s, speakerName: name }
       }
       return s
@@ -91,67 +210,6 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
       isUser: false
     }])
   }, [speakers])
-
-  // Speaker detection: runs every ~15 seconds on recent "them" segments
-  useEffect(() => {
-    if (!isCapturing) {
-      if (speakerDetectionRef.current) clearInterval(speakerDetectionRef.current)
-      return
-    }
-
-    const detectSpeakers = async () => {
-      const recentThemSegments = segments.filter(s => s.speaker === 'them' && s.isFinal && !s.speakerName).slice(-5)
-      if (recentThemSegments.length === 0) return
-
-      const transcript = recentThemSegments.map(s => s.text).join('\n')
-      const existingNames = speakers.filter(s => !s.isUser).map(s => s.name)
-
-      try {
-        const result = await window.translize.speaker.detect(transcript, existingNames)
-        if (result?.speakers?.length > 0) {
-          for (const detected of result.speakers) {
-            if (detected.name && !existingNames.includes(detected.name)) {
-              const colorIdx = speakers.length % DEFAULT_COLORS.length
-              const newSpeaker: Speaker = {
-                id: `speaker-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                name: detected.name,
-                color: DEFAULT_COLORS[colorIdx],
-                isUser: false
-              }
-              setSpeakers(prev => [...prev, newSpeaker])
-
-              // Assign this name to recent unnamed segments
-              setSegments(prev => prev.map(s => {
-                if (s.speaker === 'them' && !s.speakerName && s.text.toLowerCase().includes(detected.name.toLowerCase().split(' ')[0])) {
-                  return { ...s, speakerName: detected.name, speakerColor: newSpeaker.color }
-                }
-                return s
-              }))
-            }
-          }
-        }
-      } catch { /* detection failed silently */ }
-
-      // Assign "Speaker N" to any remaining unnamed segments
-      setSegments(prev => prev.map(s => {
-        if (s.speaker === 'them' && s.isFinal && !s.speakerName) {
-          const spName = `Speaker ${nextSpeakerNum.current}`
-          const colorIdx = nextSpeakerNum.current % DEFAULT_COLORS.length
-          if (!speakers.some(sp => sp.name === spName)) {
-            setSpeakers(p => {
-              if (p.some(sp => sp.name === spName)) return p
-              return [...p, { id: `auto-${nextSpeakerNum.current}`, name: spName, color: DEFAULT_COLORS[colorIdx], isUser: false }]
-            })
-          }
-          return { ...s, speakerName: spName, speakerColor: DEFAULT_COLORS[colorIdx] }
-        }
-        return s
-      }))
-    }
-
-    speakerDetectionRef.current = setInterval(detectSpeakers, 15000)
-    return () => { if (speakerDetectionRef.current) clearInterval(speakerDetectionRef.current) }
-  }, [isCapturing, segments, speakers])
 
   const startMicCapture = useCallback(async (service: RealtimeTranscriptionService) => {
     try {
@@ -184,7 +242,10 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
   const startSession = useCallback(async () => {
     setSysChunkCount(0); setMicChunkCount(0); setAudioError(''); setCallDuration(0)
     setSpeakers([{ id: 'you', name: 'You', color: DEFAULT_COLORS[0], isUser: true }])
-    nextSpeakerNum.current = 1
+    setSegments([])
+    // Reset diarization state for the new call
+    slotNamesRef.current = {}
+    detectionInFlightRef.current = new Set()
 
     const audioResult = await window.translize.audio.start()
     if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
@@ -192,7 +253,6 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
 
     timerRef.current = setInterval(() => setCallDuration(p => p + 1), 1000)
 
-    // Load language preferences from config
     let languages: string[] = []
     try {
       const config = await window.translize.config.read() as Record<string, unknown>

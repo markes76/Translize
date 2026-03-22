@@ -89,6 +89,13 @@ const api = {
   speaker: {
     detect: (transcript: string, existingNames: string[]): Promise<{ speakers: Array<{ name: string; context: string }> }> =>
       ipcRenderer.invoke('speaker:detect', transcript, existingNames),
+    detectSegment: (
+      segmentText: string,
+      speakerSlot: string,
+      contextLines: string[],
+      existingSlotNames: Record<string, string>
+    ): Promise<{ name: string; slot: string } | null> =>
+      ipcRenderer.invoke('speaker:detect-segment', segmentText, speakerSlot, contextLines, existingSlotNames),
     getColors: (): Promise<string[]> => ipcRenderer.invoke('speaker:get-colors')
   },
   followup: {
