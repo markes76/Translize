@@ -66,17 +66,19 @@ class RealtimeChannel {
   private languages: string[]
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
+  private diarize: boolean          // true for 'them' channel, or mic channel in face-to-face mode
 
-  // Diarization state (only meaningful for 'them' channel)
+  // Diarization state
   private currentSlot = 1          // which slot number is currently speaking
   private slotCount = 1            // total slots allocated so far
   private lastSegmentTime = 0      // ms timestamp of last completed segment
 
-  constructor(channel: 'you' | 'them', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
+  constructor(channel: 'you' | 'them', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = [], diarize = false) {
     this.channel = channel
     this.onTranscript = onTranscript
     this.onStatus = onStatus
     this.languages = languages
+    this.diarize = diarize || channel === 'them'
   }
 
   connect(): void {
@@ -154,9 +156,10 @@ class RealtimeChannel {
         if (!delta) break
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          // Assign speakerSlot for 'them' channel at segment creation time
-          const speakerSlot = this.channel === 'them' ? `them-${this.currentSlot}` : undefined
-          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
+          // Diarized channels assign a 'them-N' slot; non-diarized mic segments are 'you'
+          const speakerSlot = this.diarize ? `them-${this.currentSlot}` : undefined
+          const speaker = this.diarize ? 'them' : this.channel
+          seg = { id: nextId(this.channel), speaker, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
           this.pendingSegments.set(itemId, seg)
         }
         seg.text += delta
@@ -168,8 +171,9 @@ class RealtimeChannel {
         const transcript = event.transcript as string
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          const speakerSlot = this.channel === 'them' ? `them-${this.currentSlot}` : undefined
-          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
+          const speakerSlot = this.diarize ? `them-${this.currentSlot}` : undefined
+          const speaker = this.diarize ? 'them' : this.channel
+          seg = { id: nextId(this.channel), speaker, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
         }
         seg.text = transcript ?? seg.text
         seg.isFinal = true
@@ -177,7 +181,7 @@ class RealtimeChannel {
         this.pendingSegments.delete(itemId)
 
         // After a finalized segment, update diarization timing for next segment
-        if (this.channel === 'them') {
+        if (this.diarize) {
           const now = Date.now()
           const gap = this.lastSegmentTime > 0 ? now - this.lastSegmentTime : 0
           // Large gap suggests a different speaker may have taken the floor
@@ -230,35 +234,44 @@ export class RealtimeTranscriptionService {
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
   private languages: string[]
+  private faceToFace: boolean
   private micConnected = false
   private sysConnected = false
 
-  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
+  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = [], faceToFace = false) {
     this.onTranscript = onTranscript
     this.onStatus = onStatus
     this.languages = languages
+    this.faceToFace = faceToFace
   }
 
   connect(): void {
     this.micConnected = false
     this.sysConnected = false
 
+    // In face-to-face mode: one mic channel with diarization, no system audio channel
     this.micChannel = new RealtimeChannel('you', this.onTranscript, (status) => {
       if (status === 'connected') this.micConnected = true
       this.updateOverallStatus()
-    }, this.languages)
+    }, this.languages, this.faceToFace)
 
-    this.sysChannel = new RealtimeChannel('them', this.onTranscript, (status) => {
-      if (status === 'connected') this.sysConnected = true
-      this.updateOverallStatus()
-    }, this.languages)
+    if (!this.faceToFace) {
+      this.sysChannel = new RealtimeChannel('them', this.onTranscript, (status) => {
+        if (status === 'connected') this.sysConnected = true
+        this.updateOverallStatus()
+      }, this.languages)
+    }
 
-    this.onStatus('connecting', 'Opening dual channels...')
+    this.onStatus('connecting', this.faceToFace ? 'Opening mic channel...' : 'Opening dual channels...')
     this.micChannel.connect()
-    this.sysChannel.connect()
+    if (!this.faceToFace) this.sysChannel?.connect()
   }
 
   private updateOverallStatus(): void {
+    if (this.faceToFace) {
+      if (this.micConnected) this.onStatus('connected', 'In-person mode active')
+      return
+    }
     if (this.micConnected && this.sysConnected) {
       this.onStatus('connected', 'Dual channels active')
     } else if (this.micConnected || this.sysConnected) {

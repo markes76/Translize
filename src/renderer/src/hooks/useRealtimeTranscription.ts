@@ -23,7 +23,7 @@ export interface TranscriptionState {
 }
 
 export interface TranscriptionActions {
-  startSession: (sessionId: string) => Promise<void>
+  startSession: (sessionId: string, mode?: string) => Promise<void>
   stopSession: () => Promise<{ filePath: string; durationMs: number } | null>
   renameSpeaker: (id: string, name: string) => void
   addSpeaker: (name: string) => void
@@ -246,7 +246,7 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     micStreamRef.current?.getTracks().forEach(t => t.stop()); micStreamRef.current = null
   }, [])
 
-  const startSession = useCallback(async (sessionId: string) => {
+  const startSession = useCallback(async (sessionId: string, mode?: string) => {
     setSysChunkCount(0); setMicChunkCount(0); setAudioError(''); setCallDuration(0)
     setSpeakers([{ id: 'you', name: 'You', color: DEFAULT_COLORS[0], isUser: true }])
     setSegments([])
@@ -254,8 +254,13 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     slotNamesRef.current = {}
     detectionInFlightRef.current = new Set()
 
-    const audioResult = await window.translize.audio.start()
-    if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
+    const isFaceToFace = mode === 'facetime'
+
+    // In face-to-face mode we skip system audio capture — all voices come through the mic
+    if (!isFaceToFace) {
+      const audioResult = await window.translize.audio.start()
+      if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
+    }
     setIsCapturing(true)
 
     // Start recording (fire-and-forget — ok if recordings_enabled is false, writer handles it)
@@ -272,7 +277,8 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     const service = new RealtimeTranscriptionService(
       handleTranscriptSegment,
       (s, detail) => { setStatus(s === 'connecting' ? 'connecting' : s === 'connected' ? 'connected' : s === 'disconnected' ? 'disconnected' : 'error'); setStatusDetail(detail ?? '') },
-      languages
+      languages,
+      isFaceToFace
     )
     serviceRef.current = service; service.connect()
     startMicCapture(service)

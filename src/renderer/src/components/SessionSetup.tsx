@@ -70,16 +70,17 @@ const IMPORT_SOURCES: ImportSource[] = [
 ]
 
 interface Props {
-  prefill?: { name?: string; docPaths?: string[]; notebookId?: string; mode?: 'local' | 'notebook' | 'both' }
+  prefill?: { name?: string; docPaths?: string[]; notebookId?: string; mode?: 'local' | 'notebook' | 'both' | 'facetime' }
   onStart: (session: { id: string; name?: string; docPaths: string[]; mode: string; notebookId?: string }) => void
   onBack: () => void
 }
 
-type Mode = 'local' | 'notebook' | 'both'
+type Mode = 'local' | 'notebook' | 'both' | 'facetime'
 type NlmState = 'unknown' | 'not-connected' | 'setting-up' | 'connected'
 interface Notebook { id: string; title: string; source_count: number; updated_at: string }
 
 const MODES: { value: Mode; label: string; desc: string; icon: string }[] = [
+  { value: 'facetime', label: 'In-Person', desc: 'Face-to-face — up to 15 voices', icon: '🫂' },
   { value: 'local', label: 'Local Only', desc: 'Fast search from your documents', icon: '—' },
   { value: 'both', label: 'Local + NLM', desc: 'Local speed + NotebookLM insights', icon: '' },
   { value: 'notebook', label: 'NotebookLM', desc: 'All context from NotebookLM', icon: '📓' }
