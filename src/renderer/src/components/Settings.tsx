@@ -560,30 +560,70 @@ interface ContactEntry {
   id: string; name: string; company?: string; email?: string; source: string
 }
 
+interface SettingsImportSource {
+  id: string; label: string; icon: string; fileType: string; steps: string[]
+}
+
+const SETTINGS_IMPORT_SOURCES: SettingsImportSource[] = [
+  {
+    id: 'google-contacts',
+    label: 'Google Contacts',
+    icon: '👤',
+    fileType: 'vCard (.vcf) or CSV',
+    steps: [
+      'Open contacts.google.com in your browser',
+      'Click the menu icon (☰) → "Export"',
+      'Choose "Google CSV" or "vCard" format',
+      'Click "Export" — a file will download',
+      'Click "Choose File" below and select that file'
+    ]
+  },
+  {
+    id: 'google-sheets',
+    label: 'Google Sheets',
+    icon: '📊',
+    fileType: 'CSV',
+    steps: [
+      'Open your contact spreadsheet in Google Sheets',
+      'Make sure you have columns: Name, Company (or Organization), Email',
+      'Click File → Download → "Comma Separated Values (.csv)"',
+      'Click "Choose File" below and select the downloaded file'
+    ]
+  },
+  {
+    id: 'microsoft',
+    label: 'Microsoft / Outlook',
+    icon: '📧',
+    fileType: 'CSV',
+    steps: [
+      'Open Outlook → File → Open & Export → Import/Export',
+      'Choose "Export to a file" → "Comma Separated Values"',
+      'Select "Contacts" folder → choose save location → Finish',
+      'Alternatively: go to people.live.com → Manage → Export contacts',
+      'Click "Choose File" below and select the exported CSV'
+    ]
+  }
+]
+
+const SOURCE_LABELS: Record<string, string> = {
+  'google-contacts': 'Google Contacts',
+  'google-sheets': 'Google Sheets',
+  'microsoft': 'Microsoft / Outlook',
+  'manual': 'Manual'
+}
+
 function ContactsSettingsPanel(): React.ReactElement {
   const [contacts, setContacts] = useState<ContactEntry[]>([])
   const [clearing, setClearing] = useState<string | null>(null)
+  const [expandedSource, setExpandedSource] = useState<string | null>(null)
+  const [importing, setImporting] = useState<string | null>(null)
+  const [importStatus, setImportStatus] = useState<Record<string, string>>({})
 
   const load = async () => {
     try { setContacts(await window.translize.contact.list()) } catch {}
   }
 
   useEffect(() => { load() }, [])
-
-  const SOURCE_LABELS: Record<string, string> = {
-    'google-contacts': 'Google Contacts',
-    'google-sheets': 'Google Sheets',
-    'microsoft': 'Microsoft / Outlook',
-    'manual': 'Manual'
-  }
-
-  // Group by source
-  const bySource = contacts.reduce<Record<string, ContactEntry[]>>((acc, c) => {
-    const key = c.source
-    if (!acc[key]) acc[key] = []
-    acc[key].push(c)
-    return acc
-  }, {})
 
   const clearSource = async (source: string) => {
     setClearing(source)
@@ -592,55 +632,156 @@ function ContactsSettingsPanel(): React.ReactElement {
     setClearing(null)
   }
 
+  const handleImport = async (sourceId: string) => {
+    setImporting(sourceId)
+    setImportStatus(prev => ({ ...prev, [sourceId]: 'Choosing file...' }))
+    try {
+      const result = await window.translize.contact.pickAndImport(sourceId)
+      if (result.canceled) {
+        setImportStatus(prev => ({ ...prev, [sourceId]: '' }))
+      } else {
+        setImportStatus(prev => ({ ...prev, [sourceId]: `✓ ${result.count} new contacts imported (${result.total} total)` }))
+        await load()
+      }
+    } catch (e) {
+      setImportStatus(prev => ({ ...prev, [sourceId]: `Error: ${(e as Error).message}` }))
+    }
+    setImporting(null)
+  }
+
+  // Group imported contacts by source
+  const bySource = contacts.reduce<Record<string, ContactEntry[]>>((acc, c) => {
+    if (!acc[c.source]) acc[c.source] = []
+    acc[c.source].push(c)
+    return acc
+  }, {})
+
   return (
-    <div style={{ padding: 'var(--sp-6)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+    <div style={{ padding: 'var(--sp-6)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+
+      {/* Header */}
       <div>
         <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>Contacts</div>
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)' }}>
-          {contacts.length} contacts imported total. Import more from the New Call screen.
+          {contacts.length > 0 ? `${contacts.length} contacts imported total.` : 'No contacts imported yet.'}
         </div>
       </div>
 
-      {contacts.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-3)', fontSize: 'var(--text-sm)', background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-1)' }}>
-          No contacts imported yet. Open New Call to import from Google Contacts, Google Sheets, or Microsoft Outlook.
+      {/* Import section */}
+      <div>
+        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+          Import Contacts
         </div>
-      ) : (
-        Object.entries(bySource).map(([source, list]) => (
-          <div key={source} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink-1)' }}>
-                  {SOURCE_LABELS[source] ?? source}
-                </span>
-                <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{list.length} contacts</span>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {SETTINGS_IMPORT_SOURCES.map(src => (
+            <button
+              key={src.id}
+              onClick={() => setExpandedSource(expandedSource === src.id ? null : src.id)}
+              style={{
+                flex: 1, padding: '10px 8px',
+                background: expandedSource === src.id ? 'var(--primary-subtle)' : 'var(--surface-2)',
+                border: `1px solid ${expandedSource === src.id ? 'var(--primary)' : 'var(--border-1)'}`,
+                borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                fontSize: 'var(--text-xs)', fontWeight: 600,
+                color: expandedSource === src.id ? 'var(--primary)' : 'var(--ink-2)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{src.icon}</span>
+              <span>{src.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Expanded instructions */}
+        {expandedSource && (() => {
+          const src = SETTINGS_IMPORT_SOURCES.find(s => s.id === expandedSource)!
+          const status = importStatus[src.id]
+          return (
+            <div style={{
+              padding: '16px', background: 'var(--surface-2)',
+              border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)'
+            }}>
+              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink-1)', marginBottom: 10 }}>
+                How to export from {src.label}
               </div>
-              <button
-                onClick={() => clearSource(source)}
-                disabled={clearing === source}
-                style={{ padding: '4px 10px', background: 'var(--negative-subtle)', border: '1px solid var(--negative)', borderRadius: 'var(--radius-xs)', color: 'var(--negative)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}
-              >
-                {clearing === source ? 'Removing...' : 'Remove All'}
-              </button>
+              <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
+                {src.steps.map((step, i) => (
+                  <li key={i} style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-2)', lineHeight: 1.5 }}>{step}</li>
+                ))}
+              </ol>
+              <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  onClick={() => handleImport(src.id)}
+                  disabled={importing === src.id}
+                  style={{
+                    padding: '8px 18px',
+                    background: importing === src.id ? 'var(--ink-3)' : 'var(--primary)',
+                    color: 'white', border: 'none', borderRadius: 'var(--radius-xs)',
+                    fontSize: 'var(--text-sm)', fontWeight: 600,
+                    cursor: importing === src.id ? 'default' : 'pointer'
+                  }}
+                >
+                  {importing === src.id ? 'Importing...' : `Choose ${src.fileType} File`}
+                </button>
+                {status && (
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: status.startsWith('✓') ? 'var(--positive)' : status.startsWith('Error') ? 'var(--negative)' : 'var(--ink-3)'
+                  }}>
+                    {status}
+                  </span>
+                )}
+              </div>
             </div>
-            <div style={{ maxHeight: 200, overflow: 'auto' }}>
-              {list.slice(0, 50).map(c => (
-                <div key={c.id} style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)', fontWeight: 500 }}>{c.name}</span>
-                    {c.company && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{c.company}</span>}
-                  </div>
-                  {c.email && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.email}</span>}
-                </div>
-              ))}
-              {list.length > 50 && (
-                <div style={{ padding: '8px 16px', fontSize: 'var(--text-xs)', color: 'var(--ink-3)', fontStyle: 'italic' }}>
-                  ...and {list.length - 50} more
-                </div>
-              )}
-            </div>
+          )
+        })()}
+      </div>
+
+      {/* Imported contacts list grouped by source */}
+      {Object.keys(bySource).length > 0 && (
+        <div>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Imported Contacts
           </div>
-        ))
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Object.entries(bySource).map(([source, list]) => (
+              <div key={source} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink-1)' }}>
+                      {SOURCE_LABELS[source] ?? source}
+                    </span>
+                    <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{list.length} contacts</span>
+                  </div>
+                  <button
+                    onClick={() => clearSource(source)}
+                    disabled={clearing === source}
+                    style={{ padding: '4px 10px', background: 'var(--negative-subtle)', border: '1px solid var(--negative)', borderRadius: 'var(--radius-xs)', color: 'var(--negative)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {clearing === source ? 'Removing...' : 'Remove All'}
+                  </button>
+                </div>
+                <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                  {list.slice(0, 50).map(c => (
+                    <div key={c.id} style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)', fontWeight: 500 }}>{c.name}</span>
+                        {c.company && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{c.company}</span>}
+                      </div>
+                      {c.email && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.email}</span>}
+                    </div>
+                  ))}
+                  {list.length > 50 && (
+                    <div style={{ padding: '8px 16px', fontSize: 'var(--text-xs)', color: 'var(--ink-3)', fontStyle: 'italic' }}>
+                      ...and {list.length - 50} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )
