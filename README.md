@@ -11,8 +11,8 @@
 ## Features
 
 ### Live Call Intelligence
-- **Dual-channel transcription** — captures mic (you) and system audio (them) as separate streams via OpenAI Realtime API for accurate speaker attribution
-- **Multi-speaker diarization** — up to 15 voice slots with automatic name detection from conversational context
+- **Dual-channel transcription** — captures mic (you) and system audio (them) as separate streams via OpenAI Realtime API
+- **Clean live transcript** — plain text with timestamps during the call, no distracting speaker labels
 - **Live Context panel** — detects questions as you speak and surfaces answers in real-time from local documents, NotebookLM, and web search
 - **Live sentiment bar** — color-coded emotional tone indicator updated every 30 seconds during the call
 - **Contact name** — add or edit the contact name inline at any time during a live call
@@ -31,9 +31,11 @@
 - **Ask manually** — type any question into the Live Context panel to query all sources simultaneously
 
 ### Post-Call Intelligence
+- **GPT-4o speaker diarization** — automatically attributes every transcript line to speakers by name after the call ends, using conversation pattern analysis and name detection
+- **Speaker management** — detected speakers shown as pills with line counts; click to rename, or add additional speakers GPT missed
 - **Auto-generated summary** — overview, key topics, action items, decisions, follow-ups, and risk flags
 - **Sentiment analysis** — per-speaker scores, tone timeline, key emotional moments, and relationship signals
-- **Transcript editing** — find & replace and inline edits before saving
+- **Transcript editing** — find & replace text content, or reassign lines from one speaker to another
 - **NotebookLM sync** — push the full call summary (transcript + insights) to a notebook with one click
 - **Recording player** — play back the call audio with seek bar directly on the summary screen
 - **Contact association** — search and assign a contact from your imported contact list after the call
@@ -197,6 +199,7 @@ npm run build      # full build
 | Audio recording | WAV writer — 16kHz mono, no external dependencies |
 | Transcription | OpenAI Realtime API — dual-channel WebSocket |
 | Embeddings | OpenAI `text-embedding-3-small` + local cosine similarity |
+| Speaker diarization | OpenAI GPT-4o post-call analysis — name detection + conversation patterns |
 | Summaries | OpenAI GPT-4o structured JSON output |
 | Sentiment | OpenAI GPT-4o (text-based) + Gemini (optional voice tone) |
 | Web search | Tavily API |
@@ -214,6 +217,7 @@ src/
     recording-writer.ts     # WAV recorder (16kHz mono, mic+sys mix)
     session-manager.ts      # Session/call storage and IPC
     knowledge-base.ts       # Document indexing + question detection
+    speaker-diarizer.ts     # Speaker embedding extraction (sherpa-onnx)
     vector-store.ts         # Local embeddings + cosine similarity search
     contact-store.ts        # Contact import and storage (CSV, VCF)
     platform-skill.ts       # Per-contact persistent conversation memory
