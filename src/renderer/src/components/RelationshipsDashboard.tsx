@@ -11,6 +11,9 @@ interface Skill {
   riskFlags: Array<{ flag: string; severity: string; date: string }>
   lastUpdated: string
   callLog: Array<{ date: string; durationMinutes: number; overallSentiment: number; summary: string }>
+  _fromContacts?: boolean
+  _contactEmail?: string
+  _contactPhone?: string
 }
 
 interface Props { onBack: () => void }
@@ -227,9 +230,19 @@ export default function RelationshipsDashboard({ onBack }: Props): React.ReactEl
                       {hasRisk && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--negative)', background: 'var(--negative-subtle)', padding: '1px 6px', borderRadius: 'var(--radius-full)' }}>RISK</span>}
                     </div>
                     <div style={{ display: 'flex', gap: V.sp4, fontSize: 'var(--text-xs)', color: 'var(--ink-3)', marginTop: V.sp2 }}>
-                      <span>{s.contact.totalCalls} calls</span>
-                      <span>{s.contact.totalTalkTimeMinutes}m total</span>
-                      <span>Last: {new Date(s.lastUpdated).toLocaleDateString()}</span>
+                      {s._fromContacts ? (
+                        <>
+                          {s._contactEmail && <span>{s._contactEmail}</span>}
+                          {s.contact.role && <span>{s.contact.role}</span>}
+                          <span style={{ color: 'var(--ink-5)' }}>No calls yet</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{s.contact.totalCalls} calls</span>
+                          <span>{s.contact.totalTalkTimeMinutes}m total</span>
+                          {s.lastUpdated && <span>Last: {new Date(s.lastUpdated).toLocaleDateString()}</span>}
+                        </>
+                      )}
                     </div>
                   </div>
 

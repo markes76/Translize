@@ -28,7 +28,7 @@ function contactsFile(): string {
   return path.join(app.getPath('userData'), 'contacts.json')
 }
 
-function loadContacts(): Contact[] {
+export function loadContacts(): Contact[] {
   try {
     const raw = fs.readFileSync(contactsFile(), 'utf-8')
     return JSON.parse(raw) as Contact[]

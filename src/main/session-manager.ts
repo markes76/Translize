@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { app, ipcMain, dialog, BrowserWindow } from 'electron'
 import crypto from 'crypto'
+import { loadContacts } from './contact-store'
 
 export interface CallRecord {
   date: string
@@ -174,12 +175,38 @@ export function setupSessionIpc(): void {
 
   ipcMain.handle('skill:list', () => {
     const skillsDir = path.join(app.getPath('userData'), 'skills')
-    if (!fs.existsSync(skillsDir)) return []
-    try {
-      return fs.readdirSync(skillsDir).filter(f => f.endsWith('.json')).map(f => {
-        try { return JSON.parse(fs.readFileSync(path.join(skillsDir, f), 'utf-8')) } catch { return null }
-      }).filter(Boolean)
-    } catch { return [] }
+    const skills: Record<string, unknown>[] = []
+    if (fs.existsSync(skillsDir)) {
+      try {
+        for (const f of fs.readdirSync(skillsDir).filter(f => f.endsWith('.json'))) {
+          try { skills.push(JSON.parse(fs.readFileSync(path.join(skillsDir, f), 'utf-8'))) } catch {}
+        }
+      } catch {}
+    }
+
+    // Build a set of skill contact names for dedup
+    const skillNames = new Set(
+      skills.map(s => ((s.contact as Record<string, unknown>)?.name as string ?? '').toLowerCase().trim())
+    )
+
+    // Merge address-book contacts that don't already have a skill
+    const contacts = loadContacts()
+    for (const c of contacts) {
+      if (!c.name || skillNames.has(c.name.toLowerCase().trim())) continue
+      skills.push({
+        skillId: `contact-${c.id}`,
+        contact: { name: c.name, company: c.company ?? '', role: c.jobTitle ?? '', firstInteraction: '', totalCalls: 0, totalTalkTimeMinutes: 0 },
+        relationshipSummary: '',
+        communicationPatterns: { theirStyle: '', whatWorks: '', whatToAvoid: '' },
+        sentimentTrajectory: [], keyTopics: [], openActionItems: [], riskFlags: [],
+        lastUpdated: '', callLog: [],
+        _fromContacts: true,
+        _contactEmail: c.email ?? '',
+        _contactPhone: c.phone ?? ''
+      })
+    }
+
+    return skills
   })
 
   ipcMain.handle('skill:find', (_e, contactName: string) => {
