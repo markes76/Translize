@@ -557,7 +557,24 @@ const inputStyle: React.CSSProperties = {
 // ── Contacts Settings Panel ────────────────────────────────────────────────
 
 interface ContactEntry {
-  id: string; name: string; company?: string; email?: string; source: string
+  id: string
+  name: string
+  firstName?: string
+  lastName?: string
+  company?: string
+  jobTitle?: string
+  email?: string
+  email2?: string
+  phone?: string
+  phone2?: string
+  address?: string
+  city?: string
+  state?: string
+  country?: string
+  website?: string
+  birthday?: string
+  notes?: string
+  source: string
 }
 
 interface SettingsImportSource {
@@ -618,12 +635,21 @@ function ContactsSettingsPanel(): React.ReactElement {
   const [expandedSource, setExpandedSource] = useState<string | null>(null)
   const [importing, setImporting] = useState<string | null>(null)
   const [importStatus, setImportStatus] = useState<Record<string, string>>({})
+  const [selectedContact, setSelectedContact] = useState<ContactEntry | null>(null)
 
   const load = async () => {
     try { setContacts(await window.translize.contact.list()) } catch {}
   }
 
   useEffect(() => { load() }, [])
+
+  // Close card on Escape
+  useEffect(() => {
+    if (!selectedContact) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedContact(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectedContact])
 
   const clearSource = async (source: string) => {
     setClearing(source)
@@ -657,13 +683,13 @@ function ContactsSettingsPanel(): React.ReactElement {
   }, {})
 
   return (
-    <div style={{ padding: 'var(--sp-6)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' }}>
+    <div style={{ padding: 'var(--sp-6)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)', position: 'relative' }}>
 
       {/* Header */}
       <div>
         <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>Contacts</div>
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)' }}>
-          {contacts.length > 0 ? `${contacts.length} contacts imported total.` : 'No contacts imported yet.'}
+          {contacts.length > 0 ? `${contacts.length} contacts imported total. Click any contact to view details.` : 'No contacts imported yet.'}
         </div>
       </div>
 
@@ -762,27 +788,182 @@ function ContactsSettingsPanel(): React.ReactElement {
                     {clearing === source ? 'Removing...' : 'Remove All'}
                   </button>
                 </div>
-                <div style={{ maxHeight: 200, overflow: 'auto' }}>
-                  {list.slice(0, 50).map(c => (
-                    <div key={c.id} style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)', fontWeight: 500 }}>{c.name}</span>
-                        {c.company && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{c.company}</span>}
+                <div style={{ maxHeight: 300, overflow: 'auto' }}>
+                  {list.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedContact(c)}
+                      style={{
+                        width: '100%', padding: '10px 16px',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        background: 'transparent', border: 'none',
+                        borderBottomColor: 'var(--border-subtle)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        cursor: 'pointer', textAlign: 'left',
+                        transition: 'background var(--transition-fast)'
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)', fontWeight: 600 }}>{c.name}</span>
+                          {c.jobTitle && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-3)' }}>{c.jobTitle}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          {c.company && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.company}</span>}
+                          {c.email && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.email}</span>}
+                          {c.city && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>📍 {[c.city, c.country].filter(Boolean).join(', ')}</span>}
+                        </div>
                       </div>
-                      {c.email && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>{c.email}</span>}
-                    </div>
+                      <span style={{ fontSize: 10, color: 'var(--ink-4)', marginLeft: 8, flexShrink: 0 }}>›</span>
+                    </button>
                   ))}
-                  {list.length > 50 && (
-                    <div style={{ padding: '8px 16px', fontSize: 'var(--text-xs)', color: 'var(--ink-3)', fontStyle: 'italic' }}>
-                      ...and {list.length - 50} more
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Contact detail card modal */}
+      {selectedContact && (
+        <ContactCard contact={selectedContact} onClose={() => setSelectedContact(null)} />
+      )}
     </div>
+  )
+}
+
+function ContactCard({ contact: c, onClose }: { contact: ContactEntry; onClose: () => void }): React.ReactElement {
+  const initials = (c.firstName?.[0] ?? c.name[0] ?? '?').toUpperCase() + (c.lastName?.[0] ?? c.name.split(' ')[1]?.[0] ?? '').toUpperCase()
+
+  const Field = ({ label, value }: { label: string; value?: string }) => {
+    if (!value) return null
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-1)' }}>{value}</span>
+      </div>
+    )
+  }
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 4 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
+    </div>
+  )
+
+  const locationParts = [c.address, c.city, c.state, c.country].filter(Boolean).join(', ')
+  const sourceLabel = SOURCE_LABELS[c.source] ?? c.source
+
+  const hasWork = c.company || c.jobTitle
+  const hasContact = c.email || c.email2 || c.phone || c.phone2 || c.website
+  const hasLocation = locationParts
+  const hasMore = c.birthday || c.notes
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 100, backdropFilter: 'blur(2px)'
+        }}
+      />
+      {/* Card */}
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 480, maxWidth: 'calc(100vw - 48px)',
+        maxHeight: 'calc(100vh - 96px)',
+        background: 'var(--surface-1)', border: '1px solid var(--border-1)',
+        borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-xl)',
+        zIndex: 101, overflow: 'hidden',
+        display: 'flex', flexDirection: 'column'
+      }}>
+        {/* Avatar + name header */}
+        <div style={{
+          padding: '24px 24px 20px',
+          background: 'var(--surface-2)',
+          borderBottom: '1px solid var(--border-1)',
+          display: 'flex', alignItems: 'center', gap: 16
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'var(--primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, fontWeight: 700, color: 'white', flexShrink: 0
+          }}>
+            {initials}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--ink-1)' }}>{c.name}</div>
+            {c.jobTitle && <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)', marginTop: 2 }}>{c.jobTitle}</div>}
+            {c.company && <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-3)' }}>{c.company}</div>}
+            <div style={{ marginTop: 6 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: 'var(--ink-3)',
+                background: 'var(--surface-3)', padding: '2px 8px',
+                borderRadius: 'var(--radius-full)', letterSpacing: '0.04em'
+              }}>
+                {sourceLabel}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'var(--surface-3)', border: 'none',
+              fontSize: 14, color: 'var(--ink-3)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ padding: '20px 24px', overflow: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {hasContact && (
+            <Section title="Contact">
+              <Field label="Email" value={c.email} />
+              <Field label="Email 2" value={c.email2} />
+              <Field label="Phone" value={c.phone} />
+              <Field label="Phone 2" value={c.phone2} />
+              <Field label="Website" value={c.website} />
+            </Section>
+          )}
+          {hasWork && (
+            <Section title="Work">
+              <Field label="Company" value={c.company} />
+              <Field label="Job Title" value={c.jobTitle} />
+            </Section>
+          )}
+          {hasLocation && (
+            <Section title="Location">
+              <Field label="Address" value={c.address} />
+              <Field label="City" value={c.city} />
+              <Field label="State / Region" value={c.state} />
+              <Field label="Country" value={c.country} />
+            </Section>
+          )}
+          {hasMore && (
+            <Section title="More">
+              <Field label="Birthday" value={c.birthday} />
+              <Field label="Notes" value={c.notes} />
+            </Section>
+          )}
+          {!hasContact && !hasWork && !hasLocation && !hasMore && (
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-4)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+              No additional details available for this contact.
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   )
 }

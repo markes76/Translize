@@ -4,7 +4,10 @@ interface Contact {
   id: string
   name: string
   company?: string
+  jobTitle?: string
   email?: string
+  city?: string
+  country?: string
   source: string
 }
 
@@ -248,7 +251,16 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
                   >
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>{c.name}</div>
-                      {c.company && <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{c.company}</div>}
+                      {(c.company || c.jobTitle) && (
+                        <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+                          {[c.jobTitle, c.company].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
+                      {(c.email || c.city) && (
+                        <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                          {[c.email, c.city && c.country ? `${c.city}, ${c.country}` : c.city].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
                     </div>
                     <span style={{ fontSize: 10, color: 'var(--ink-4)', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 8 }}>
                       {c.source === 'google-contacts' ? 'Google' : c.source === 'google-sheets' ? 'Sheets' : c.source === 'microsoft' ? 'Outlook' : c.source}

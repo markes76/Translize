@@ -6,9 +6,21 @@ import crypto from 'crypto'
 export interface Contact {
   id: string
   name: string
+  firstName?: string
+  lastName?: string
   company?: string
+  jobTitle?: string
   email?: string
+  email2?: string
   phone?: string
+  phone2?: string
+  address?: string
+  city?: string
+  state?: string
+  country?: string
+  website?: string
+  birthday?: string
+  notes?: string
   source: string  // 'google-contacts' | 'google-sheets' | 'microsoft' | 'manual'
 }
 
@@ -53,11 +65,24 @@ function parseCSVRow(line: string): string[] {
   return cols
 }
 
-// Column name aliases for each field
-const NAME_COLS   = ['name', 'full name', 'display name', 'contact name', 'first name + last name', 'given name']
-const COMPANY_COLS = ['company', 'organization', 'organisation', 'account name', 'employer', 'company name']
-const EMAIL_COLS  = ['email', 'email address', 'e-mail', 'e-mail address', 'primary email', 'work email']
-const PHONE_COLS  = ['phone', 'phone number', 'mobile', 'mobile phone', 'work phone', 'primary phone']
+// Column name aliases — ordered by priority (first match wins)
+// Covers: Google Contacts CSV, Google CSV export, Outlook CSV, generic spreadsheets
+const FIRST_NAME_COLS = ['given name', 'first name', 'firstname', 'forename']
+const LAST_NAME_COLS  = ['family name', 'last name', 'lastname', 'surname']
+const NAME_COLS       = ['name', 'full name', 'display name', 'contact name', 'first name + last name']
+const COMPANY_COLS    = ['company', 'organization', 'organisation', 'account name', 'employer', 'company name']
+const JOB_TITLE_COLS  = ['job title', 'title', 'position', 'role', 'occupation']
+const EMAIL_COLS      = ['e-mail 1 - value', 'email address', 'e-mail address', 'primary email', 'work email', 'email']
+const EMAIL2_COLS     = ['e-mail 2 - value', 'email 2', 'home email', 'personal email', 'other email']
+const PHONE_COLS      = ['phone 1 - value', 'business phone', 'work phone', 'primary phone', 'phone number', 'mobile', 'mobile phone', 'phone']
+const PHONE2_COLS     = ['phone 2 - value', 'mobile phone', 'home phone', 'other phone', 'fax', 'phone 2']
+const ADDRESS_COLS    = ['address 1 - street', 'business street', 'home street', 'street address', 'address', 'street']
+const CITY_COLS       = ['address 1 - city', 'business city', 'home city', 'city']
+const STATE_COLS      = ['address 1 - region', 'business state', 'home state', 'state', 'province', 'region']
+const COUNTRY_COLS    = ['address 1 - country', 'business country', 'home country', 'country', 'country/region']
+const WEBSITE_COLS    = ['web page', 'website', 'url', 'homepage', 'web site']
+const BIRTHDAY_COLS   = ['birthday', 'date of birth', 'birth date', 'dob']
+const NOTES_COLS      = ['notes', 'description', 'comments', 'memo', 'other']
 
 function findCol(headers: string[], aliases: string[]): number {
   const lower = headers.map(h => h.toLowerCase().trim())
@@ -68,19 +93,35 @@ function findCol(headers: string[], aliases: string[]): number {
   return -1
 }
 
-// Handle Outlook "First Name" + "Last Name" split columns
-function buildName(row: string[], headers: string[]): string {
+function findColExact(headers: string[], aliases: string[]): number {
   const lower = headers.map(h => h.toLowerCase().trim())
-  const firstIdx = lower.indexOf('first name')
-  const lastIdx = lower.indexOf('last name')
-  if (firstIdx !== -1 || lastIdx !== -1) {
-    const first = firstIdx !== -1 ? (row[firstIdx] ?? '').trim() : ''
-    const last = lastIdx !== -1 ? (row[lastIdx] ?? '').trim() : ''
-    const combined = `${first} ${last}`.trim()
-    if (combined) return combined
+  for (const alias of aliases) {
+    const idx = lower.indexOf(alias)
+    if (idx !== -1) return idx
   }
+  return -1
+}
+
+function col(row: string[], idx: number): string | undefined {
+  return idx !== -1 ? (row[idx] ?? '').trim() || undefined : undefined
+}
+
+// Handle split first/last name columns, fallback to full-name column
+function buildName(row: string[], headers: string[]): { name: string; firstName?: string; lastName?: string } {
+  const firstIdx = findColExact(headers, FIRST_NAME_COLS)
+  const lastIdx  = findColExact(headers, LAST_NAME_COLS)
+
+  const firstName = firstIdx !== -1 ? (row[firstIdx] ?? '').trim() : undefined
+  const lastName  = lastIdx  !== -1 ? (row[lastIdx]  ?? '').trim() : undefined
+
+  if (firstName || lastName) {
+    const name = `${firstName ?? ''} ${lastName ?? ''}`.trim()
+    return { name, firstName: firstName || undefined, lastName: lastName || undefined }
+  }
+
   const nameIdx = findCol(headers, NAME_COLS)
-  return nameIdx !== -1 ? (row[nameIdx] ?? '').trim() : ''
+  const full = nameIdx !== -1 ? (row[nameIdx] ?? '').trim() : ''
+  return { name: full }
 }
 
 export function importCSV(csvText: string, source: string): Contact[] {
@@ -88,19 +129,49 @@ export function importCSV(csvText: string, source: string): Contact[] {
   if (lines.length < 2) return []
 
   const headers = parseCSVRow(lines[0])
-  const companyIdx = findCol(headers, COMPANY_COLS)
-  const emailIdx   = findCol(headers, EMAIL_COLS)
-  const phoneIdx   = findCol(headers, PHONE_COLS)
+
+  // Resolve column indices once
+  const companyIdx  = findCol(headers, COMPANY_COLS)
+  const titleIdx    = findColExact(headers, JOB_TITLE_COLS)
+  const emailIdx    = findCol(headers, EMAIL_COLS)
+  const email2Idx   = findCol(headers, EMAIL2_COLS)
+  const phoneIdx    = findCol(headers, PHONE_COLS)
+  const phone2Idx   = findCol(headers, PHONE2_COLS)
+  const addrIdx     = findCol(headers, ADDRESS_COLS)
+  const cityIdx     = findCol(headers, CITY_COLS)
+  const stateIdx    = findCol(headers, STATE_COLS)
+  const countryIdx  = findCol(headers, COUNTRY_COLS)
+  const webIdx      = findCol(headers, WEBSITE_COLS)
+  const bdayIdx     = findColExact(headers, BIRTHDAY_COLS)
+  const notesIdx    = findCol(headers, NOTES_COLS)
 
   const imported: Contact[] = []
   for (let i = 1; i < lines.length; i++) {
     const row = parseCSVRow(lines[i])
-    const name = buildName(row, headers)
+    const { name, firstName, lastName } = buildName(row, headers)
     if (!name) continue
-    const company = companyIdx !== -1 ? (row[companyIdx] ?? '').trim() || undefined : undefined
-    const email   = emailIdx   !== -1 ? (row[emailIdx]   ?? '').trim() || undefined : undefined
-    const phone   = phoneIdx   !== -1 ? (row[phoneIdx]   ?? '').trim() || undefined : undefined
-    imported.push({ id: contactId(name, email), name, company, email, phone, source })
+
+    const email = col(row, emailIdx)
+    imported.push({
+      id: contactId(name, email),
+      name,
+      firstName,
+      lastName,
+      company:  col(row, companyIdx),
+      jobTitle: col(row, titleIdx),
+      email,
+      email2:   col(row, email2Idx),
+      phone:    col(row, phoneIdx),
+      phone2:   col(row, phone2Idx),
+      address:  col(row, addrIdx),
+      city:     col(row, cityIdx),
+      state:    col(row, stateIdx),
+      country:  col(row, countryIdx),
+      website:  col(row, webIdx),
+      birthday: col(row, bdayIdx),
+      notes:    col(row, notesIdx),
+      source
+    })
   }
   return imported
 }
@@ -109,34 +180,80 @@ export function importCSV(csvText: string, source: string): Contact[] {
 
 export function importVCF(vcfText: string, source: string): Contact[] {
   const contacts: Contact[] = []
-  // Split into individual vCards
   const cards = vcfText.split(/BEGIN:VCARD/i).slice(1)
 
   for (const card of cards) {
-    let name = '', company = '', email = '', phone = ''
+    let name = '', firstName = '', lastName = '', company = '', jobTitle = ''
+    let email = '', email2 = '', phone = '', phone2 = ''
+    let address = '', city = '', state = '', country = ''
+    let website = '', birthday = '', notes = ''
+    let emailCount = 0, phoneCount = 0
 
-    const lines = card.split(/\r?\n/)
-    for (const line of lines) {
+    // Unfold vCard lines (RFC 6350: continuation lines start with whitespace)
+    const rawLines = card.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)
+
+    for (const line of rawLines) {
       const upper = line.toUpperCase()
+      const value = line.split(':').slice(1).join(':').trim()
+
       if (upper.startsWith('FN:') || upper.startsWith('FN;')) {
-        // FN;CHARSET=UTF-8:John Smith  OR  FN:John Smith
-        name = line.split(':').slice(1).join(':').trim()
+        name = value
+      } else if (upper.startsWith('N:') || upper.startsWith('N;')) {
+        // N field: LastName;FirstName;Middle;Prefix;Suffix
+        const parts = value.split(';')
+        lastName  = (parts[0] ?? '').trim()
+        firstName = (parts[1] ?? '').trim()
       } else if (upper.startsWith('ORG:') || upper.startsWith('ORG;')) {
-        company = line.split(':').slice(1).join(':').split(';')[0].trim()
-      } else if (upper.startsWith('EMAIL') && !email) {
-        email = line.split(':').slice(1).join(':').trim()
-      } else if (upper.startsWith('TEL') && !phone) {
-        phone = line.split(':').slice(1).join(':').trim()
+        company = value.split(';')[0].trim()
+      } else if (upper.startsWith('TITLE:') || upper.startsWith('TITLE;')) {
+        jobTitle = value
+      } else if (upper.startsWith('EMAIL') && emailCount < 2) {
+        emailCount++
+        if (emailCount === 1) email = value
+        else email2 = value
+      } else if (upper.startsWith('TEL') && phoneCount < 2) {
+        phoneCount++
+        if (phoneCount === 1) phone = value
+        else phone2 = value
+      } else if (upper.startsWith('ADR:') || upper.startsWith('ADR;')) {
+        // ADR: pobox;extended;street;city;state;zip;country
+        const parts = value.split(';')
+        address = (parts[2] ?? '').trim()
+        city    = (parts[3] ?? '').trim()
+        state   = (parts[4] ?? '').trim()
+        country = (parts[6] ?? '').trim()
+      } else if (upper.startsWith('URL:') || upper.startsWith('URL;')) {
+        website = value
+      } else if (upper.startsWith('BDAY:') || upper.startsWith('BDAY;')) {
+        birthday = value
+      } else if (upper.startsWith('NOTE:') || upper.startsWith('NOTE;')) {
+        notes = value
       }
     }
 
+    if (!name && (firstName || lastName)) {
+      name = `${firstName} ${lastName}`.trim()
+    }
     if (!name) continue
+
     contacts.push({
       id: contactId(name, email),
       name,
-      company: company || undefined,
-      email: email || undefined,
-      phone: phone || undefined,
+      firstName: firstName || undefined,
+      lastName:  lastName  || undefined,
+      company:   company   || undefined,
+      jobTitle:  jobTitle  || undefined,
+      email:     email     || undefined,
+      email2:    email2    || undefined,
+      phone:     phone     || undefined,
+      phone2:    phone2    || undefined,
+      address:   address   || undefined,
+      city:      city      || undefined,
+      state:     state     || undefined,
+      country:   country   || undefined,
+      website:   website   || undefined,
+      birthday:  birthday  || undefined,
+      notes:     notes     || undefined,
       source
     })
   }
