@@ -4,11 +4,11 @@ import { generateSummary, CallSummary } from '../services/summarizer'
 import { analyzeSentiment, SentimentAnalysis } from '../services/sentiment-engine'
 import { generateOrUpdateSkill } from '../services/skill-manager'
 
-interface Props { segments: TranscriptSegment[]; sessionId: string; sessionName?: string; notebookId?: string; mode: string; onBack: () => void; onNewCall: () => void }
+interface Props { segments: TranscriptSegment[]; sessionId: string; sessionName?: string; notebookId?: string; mode: string; audioFile?: string | null; onBack: () => void; onNewCall: () => void }
 
 const V = { sp1: '4px', sp2: '8px', sp3: '12px', sp4: '16px', sp5: '20px', sp6: '24px', sp8: '32px', sp10: '40px', sp12: '48px', sp16: '64px' }
 
-export default function PostCallSummary({ segments, sessionId, sessionName, notebookId, mode, onBack, onNewCall }: Props): React.ReactElement {
+export default function PostCallSummary({ segments, sessionId, sessionName, notebookId, mode, audioFile, onBack, onNewCall }: Props): React.ReactElement {
   const [contactName, setContactName] = useState(sessionName ?? '')
   const [editingContact, setEditingContact] = useState(false)
   const [contactDraft, setContactDraft] = useState('')
@@ -31,6 +31,13 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
   const [replaceText, setReplaceText] = useState('')
   const [showFR, setShowFR] = useState(false)
   const [editedSegs, setEditedSegs] = useState(segments)
+
+  // Recording player state
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [audioPlaying, setAudioPlaying] = useState(false)
+  const [audioCurrent, setAudioCurrent] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(audioFile ?? null)
 
   const useNlm = (mode === 'notebook' || mode === 'both') && !!notebookId
 
@@ -209,6 +216,60 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
                   {syncStatus === 'error' ? 'Retry' : 'Sync'}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Recording player */}
+          {currentAudioFile && (
+            <div style={{ marginBottom: V.sp8, padding: `${V.sp4} ${V.sp5}`, background: 'var(--surface-raised)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-md)' }}>
+              <audio
+                ref={audioRef}
+                src={`file://${currentAudioFile}`}
+                onTimeUpdate={() => setAudioCurrent(audioRef.current?.currentTime ?? 0)}
+                onDurationChange={() => setAudioDuration(audioRef.current?.duration ?? 0)}
+                onPlay={() => setAudioPlaying(true)}
+                onPause={() => setAudioPlaying(false)}
+                onEnded={() => setAudioPlaying(false)}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3, marginBottom: V.sp3 }}>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>🎙 Recording</span>
+                {audioDuration > 0 && (
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-4)' }}>
+                    {Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}
+                  </span>
+                )}
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={async () => {
+                    if (window.confirm('Delete this recording? This cannot be undone.')) {
+                      await window.translize.recording.delete(currentAudioFile)
+                      setCurrentAudioFile(null)
+                    }
+                  }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--negative)', fontSize: 11, fontWeight: 600, padding: `${V.sp1} ${V.sp2}` }}
+                >
+                  Delete
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: V.sp3 }}>
+                <button
+                  onClick={() => audioPlaying ? audioRef.current?.pause() : audioRef.current?.play()}
+                  style={{ flexShrink: 0, width: 32, height: 32, borderRadius: '50%', background: 'var(--primary)', border: 'none', color: 'white', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {audioPlaying ? '⏸' : '▶'}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={audioDuration || 1}
+                  value={audioCurrent}
+                  onChange={e => { if (audioRef.current) { audioRef.current.currentTime = Number(e.target.value) } }}
+                  style={{ flex: 1, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--ink-4)', fontVariantNumeric: 'tabular-nums', minWidth: 80, textAlign: 'right' }}>
+                  {Math.floor(audioCurrent / 60)}:{String(Math.floor(audioCurrent % 60)).padStart(2, '0')} / {audioDuration > 0 ? `${Math.floor(audioDuration / 60)}:${String(Math.floor(audioDuration % 60)).padStart(2, '0')}` : '--:--'}
+                </span>
+              </div>
             </div>
           )}
 

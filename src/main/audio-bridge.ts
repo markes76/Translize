@@ -1,6 +1,7 @@
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
+import { appendSysChunk } from './recording-writer'
 
 let captureProcess: ChildProcess | null = null
 
@@ -59,6 +60,7 @@ export function setupAudioBridge(win: BrowserWindow): void {
         if (accPos >= CHUNK_BYTES) {
           const buf = Buffer.from(accumulator)
           safeSend(win, 'audio:chunk', buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
+          appendSysChunk(buf)
           accPos = 0
           chunksSent++
           if (chunksSent % 100 === 0) {

@@ -10,7 +10,7 @@ import { checkLiveSentiment } from '../services/sentiment-engine'
 
 interface Props {
   sessionId: string; sessionName?: string; notebookId?: string; mode: string
-  onEndCall: (segments: TranscriptSegment[]) => void; onBack: () => void
+  onEndCall: (segments: TranscriptSegment[], audioFile: string | null) => void; onBack: () => void
   onNavigate: (destination: string) => void
 }
 
@@ -55,7 +55,10 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
 
   const addActivity = (msg: string, type: string) => setActivity(p => [{ id: actId++, message: msg, type, timestamp: Date.now() }, ...p].slice(0, 30))
 
-  const handleStop = async () => { await stopSession(); onEndCall(segments) }
+  const handleStop = async () => {
+    const recording = await stopSession()
+    onEndCall(segments, recording?.filePath ?? null)
+  }
 
   const saveContact = async (name: string) => {
     const trimmed = name.trim()
@@ -76,7 +79,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
 
       {/* Controls bar */}
       <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <button onClick={isActive ? handleStop : startSession} style={{
+        <button onClick={isActive ? handleStop : () => startSession(sessionId)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px',
           background: isActive ? 'var(--negative)' : 'var(--primary)',
           color: 'white', border: 'none', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)'

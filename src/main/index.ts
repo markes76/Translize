@@ -12,6 +12,7 @@ import { setupGeminiIpc } from './gemini-service'
 import { setupPlatformSkillIpc } from './platform-skill'
 import { setupAudioBufferIpc } from './audio-buffer'
 import { setupContactIpc } from './contact-store'
+import { setupRecordingIpc, purgeOldRecordings } from './recording-writer'
 import { keychainGet } from './keychain'
 import { readConfig } from './config'
 
@@ -83,6 +84,8 @@ app.whenReady().then(() => {
   setupPlatformSkillIpc()
   setupAudioBufferIpc()
   setupContactIpc()
+  setupRecordingIpc()
+  purgeOldRecordings()
 
   if (!isMacOSSupported()) {
     // Create minimal window to show the version error

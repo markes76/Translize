@@ -33,6 +33,8 @@ export default function Settings({ onBack }: Props): React.ReactElement {
   const [geminiOk, setGeminiOk] = useState(false)
   const [geminiTesting, setGeminiTesting] = useState(false)
   const [audioBuffering, setAudioBuffering] = useState(false)
+  const [recordingsEnabled, setRecordingsEnabled] = useState(true)
+  const [recordingsRetention, setRecordingsRetention] = useState(30)
   const [config, setConfig] = useState<Record<string, unknown>>({})
 
   // Appearance state
@@ -50,6 +52,8 @@ export default function Settings({ onBack }: Props): React.ReactElement {
       setConfig(c)
       setTavilyEnabled(c.tavily_enabled !== false)
       if (Array.isArray(c.languages)) setLanguages(c.languages as string[])
+      setRecordingsEnabled(c.recordings_enabled !== false)
+      if (typeof c.recordings_retention_days === 'number') setRecordingsRetention(c.recordings_retention_days)
     })
     window.translize.app.getTheme().then(t => setTheme(t))
   }, [])
@@ -184,6 +188,25 @@ export default function Settings({ onBack }: Props): React.ReactElement {
                 <SettingRow label="Audio Buffering" desc="Temporarily store call audio for deep voice sentiment analysis with Gemini. Audio files are auto-deleted after 30 minutes.">
                   <ToggleSwitch enabled={audioBuffering} onChange={async (v) => { setAudioBuffering(v); await window.translize.gemini.toggleAudioBuffering(v) }} />
                 </SettingRow>
+
+                {/* Voice recordings */}
+                <SettingRow label="Save Voice Recordings" desc="Record calls as WAV files (16kHz mono, ~3.5MB/30min). Recordings are saved to your session folder and playable from the call summary.">
+                  <ToggleSwitch enabled={recordingsEnabled} onChange={async (v) => { setRecordingsEnabled(v); await window.translize.config.write({ recordings_enabled: v }) }} />
+                </SettingRow>
+                {recordingsEnabled && (
+                  <SettingRow label="Auto-delete Recordings After" desc="Automatically delete voice recording files after the selected number of days to manage disk space.">
+                    <select
+                      value={recordingsRetention}
+                      onChange={async (e) => { const v = Number(e.target.value); setRecordingsRetention(v); await window.translize.config.write({ recordings_retention_days: v }) }}
+                      style={{ padding: '4px 8px', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--radius-sm)', color: 'var(--ink-1)', fontSize: 'var(--text-sm)', cursor: 'pointer' }}
+                    >
+                      <option value={7}>7 days</option>
+                      <option value={30}>30 days</option>
+                      <option value={90}>90 days</option>
+                      <option value={0}>Never</option>
+                    </select>
+                  </SettingRow>
+                )}
 
                 {/* Transcription info */}
                 <SettingRow label="Transcription Engine" desc="Real-time transcription via OpenAI Whisper through the Realtime API. Dual-channel architecture separates your voice from system audio for accurate speaker attribution.">

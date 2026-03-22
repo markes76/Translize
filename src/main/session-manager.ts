@@ -17,6 +17,7 @@ export interface CallRecord {
   contactName?: string
   segmentCount?: number
   skillId?: string
+  audioFile?: string
 }
 
 export interface Session {

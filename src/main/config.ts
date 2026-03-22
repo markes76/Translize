@@ -13,6 +13,8 @@ interface AppConfig {
   context_interval_seconds?: number
   retention_days?: number
   notebooklm_enabled?: boolean
+  recordings_enabled?: boolean
+  recordings_retention_days?: number
 }
 
 const DEFAULTS: AppConfig = {

@@ -23,8 +23,8 @@ export interface TranscriptionState {
 }
 
 export interface TranscriptionActions {
-  startSession: () => Promise<void>
-  stopSession: () => Promise<void>
+  startSession: (sessionId: string) => Promise<void>
+  stopSession: () => Promise<{ filePath: string; durationMs: number } | null>
   renameSpeaker: (id: string, name: string) => void
   addSpeaker: (name: string) => void
 }
@@ -226,7 +226,14 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
         for (let i = 0; i < input.length; i++) {
           const s = Math.max(-1, Math.min(1, input[i]))
           acc[pos++] = s < 0 ? s * 0x8000 : s * 0x7FFF
-          if (pos >= MIC_CHUNK_FRAMES) { service.appendAudio(acc.buffer.slice(0), 'you'); setMicChunkCount(p => p + 1); acc = new Int16Array(MIC_CHUNK_FRAMES); pos = 0 }
+          if (pos >= MIC_CHUNK_FRAMES) {
+            const chunk = acc.buffer.slice(0)
+            service.appendAudio(chunk, 'you')
+            window.translize.recording.micChunk(chunk)
+            setMicChunkCount(p => p + 1)
+            acc = new Int16Array(MIC_CHUNK_FRAMES)
+            pos = 0
+          }
         }
       }
       source.connect(processor); processor.connect(ctx.destination)
@@ -239,7 +246,7 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     micStreamRef.current?.getTracks().forEach(t => t.stop()); micStreamRef.current = null
   }, [])
 
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (sessionId: string) => {
     setSysChunkCount(0); setMicChunkCount(0); setAudioError(''); setCallDuration(0)
     setSpeakers([{ id: 'you', name: 'You', color: DEFAULT_COLORS[0], isUser: true }])
     setSegments([])
@@ -250,6 +257,9 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     const audioResult = await window.translize.audio.start()
     if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
     setIsCapturing(true)
+
+    // Start recording (fire-and-forget — ok if recordings_enabled is false, writer handles it)
+    window.translize.recording.start(sessionId).catch(() => {})
 
     timerRef.current = setInterval(() => setCallDuration(p => p + 1), 1000)
 
@@ -280,6 +290,12 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     removeListenersRef.current.forEach(fn => fn()); removeListenersRef.current = []
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setStatus('idle'); setStatusDetail('')
+    // Stop recording and return the result so the caller can save audioFile
+    try {
+      return await window.translize.recording.stop()
+    } catch {
+      return null
+    }
   }, [stopMicCapture])
 
   useEffect(() => {

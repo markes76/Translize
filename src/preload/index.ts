@@ -125,6 +125,17 @@ const api = {
     find: (contactName: string): Promise<unknown> => ipcRenderer.invoke('skill:find', contactName),
     delete: (skillId: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('skill:delete', skillId)
   },
+  recording: {
+    start: (sessionId: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('recording:start', sessionId),
+    stop: (): Promise<{ filePath: string; durationMs: number } | null> =>
+      ipcRenderer.invoke('recording:stop'),
+    micChunk: (chunk: ArrayBuffer): void => ipcRenderer.send('recording:mic-chunk', chunk),
+    status: (): Promise<{ isRecording: boolean; durationMs: number; estimatedBytes: number }> =>
+      ipcRenderer.invoke('recording:status'),
+    delete: (filePath: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('recording:delete', filePath)
+  },
   audioBuffer: {
     status: (): Promise<{ enabled: boolean; micChunks: number; sysChunks: number; durationMs: number }> => ipcRenderer.invoke('audio-buffer:status'),
     stop: (): Promise<{ micFile: string | null; sysFile: string | null; durationMs: number }> => ipcRenderer.invoke('audio-buffer:stop'),

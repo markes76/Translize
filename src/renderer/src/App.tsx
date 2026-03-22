@@ -29,6 +29,7 @@ export default function App(): React.ReactElement {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
   const [prefill, setPrefill] = useState<Record<string, unknown> | undefined>()
   const [completedSegments, setCompletedSegments] = useState<TranscriptSegment[]>([])
+  const [completedAudioFile, setCompletedAudioFile] = useState<string | null>(null)
 
   useEffect(() => {
     const params = getUrlParams()
@@ -47,8 +48,9 @@ export default function App(): React.ReactElement {
     })
   }, [])
 
-  const handleCallEnd = useCallback((segments: TranscriptSegment[]) => {
+  const handleCallEnd = useCallback((segments: TranscriptSegment[], audioFile: string | null) => {
     setCompletedSegments(segments)
+    setCompletedAudioFile(audioFile)
     setState('summary')
   }, [])
 
@@ -140,7 +142,7 @@ export default function App(): React.ReactElement {
 
     if (state === 'summary' && activeSession) {
       return (
-        <PostCallSummary segments={completedSegments} sessionId={activeSession.id} sessionName={activeSession.name} notebookId={activeSession.notebookId} mode={activeSession.mode}
+        <PostCallSummary segments={completedSegments} sessionId={activeSession.id} sessionName={activeSession.name} notebookId={activeSession.notebookId} mode={activeSession.mode} audioFile={completedAudioFile}
           onBack={() => { setActiveSession(null); setState('home') }}
           onNewCall={() => { setActiveSession(null); setPrefill(undefined); setState('setup') }} />
       )
