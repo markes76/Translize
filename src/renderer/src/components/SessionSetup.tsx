@@ -70,26 +70,27 @@ const IMPORT_SOURCES: ImportSource[] = [
 ]
 
 interface Props {
-  prefill?: { name?: string; docPaths?: string[]; notebookId?: string; mode?: 'local' | 'notebook' | 'both' | 'facetime' }
+  prefill?: { name?: string; docPaths?: string[]; notebookId?: string; mode?: 'none' | 'local' | 'notebook' | 'both' }
   onStart: (session: { id: string; name?: string; docPaths: string[]; mode: string; notebookId?: string }) => void
   onBack: () => void
 }
 
-type Mode = 'local' | 'notebook' | 'both' | 'facetime'
+type Mode = 'none' | 'local' | 'notebook' | 'both'
 type NlmState = 'unknown' | 'not-connected' | 'setting-up' | 'connected'
 interface Notebook { id: string; title: string; source_count: number; updated_at: string }
 
+// Knowledge source modes — independent of audio setup (always dual-channel)
 const MODES: { value: Mode; label: string; desc: string; icon: string }[] = [
-  { value: 'facetime', label: 'In-Person', desc: 'Face-to-face — up to 15 voices', icon: '🫂' },
-  { value: 'local', label: 'Local Only', desc: 'Fast search from your documents', icon: '—' },
-  { value: 'both', label: 'Local + NLM', desc: 'Local speed + NotebookLM insights', icon: '' },
-  { value: 'notebook', label: 'NotebookLM', desc: 'All context from NotebookLM', icon: '📓' }
+  { value: 'none', label: 'No Context', desc: 'Transcription only', icon: '—' },
+  { value: 'local', label: 'Local Docs', desc: 'Search your uploaded documents', icon: '📄' },
+  { value: 'both', label: 'Docs + NLM', desc: 'Local docs + NotebookLM depth', icon: '⚡' },
+  { value: 'notebook', label: 'NotebookLM', desc: 'All context from your notebook', icon: '📓' }
 ]
 
 export default function SessionSetup({ prefill, onStart, onBack }: Props): React.ReactElement {
   const [name, setName] = useState(prefill?.name ?? '')
   const [docPaths, setDocPaths] = useState<string[]>(prefill?.docPaths ?? [])
-  const [mode, setMode] = useState<Mode>(prefill?.mode ?? 'local')
+  const [mode, setMode] = useState<Mode>((prefill?.mode as Mode) ?? 'local')
   const [callTopic, setCallTopic] = useState('')
   const [callLanguages, setCallLanguages] = useState<string[]>([])
   const [indexing, setIndexing] = useState(false)
@@ -104,6 +105,7 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
   const [creatingNb, setCreatingNb] = useState(false)
   const removeRef = useRef<(() => void) | null>(null)
   const needsNlm = mode === 'notebook' || mode === 'both'
+  const needsKnowledge = mode !== 'none'
 
   // Contact autocomplete
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -396,9 +398,12 @@ export default function SessionSetup({ prefill, onStart, onBack }: Props): React
             </div>
           </div>
 
-          {/* Mode */}
+          {/* Knowledge Source */}
           <div style={S.section}>
-            <label style={S.label}>Context Mode</label>
+            <label style={S.label}>Knowledge Source</label>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 8 }}>
+              All calls capture in-room (mic) and remote voices automatically.
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {MODES.map(m => (
                 <button key={m.value} onClick={() => setMode(m.value)} style={{

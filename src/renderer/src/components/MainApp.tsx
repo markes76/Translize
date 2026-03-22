@@ -22,7 +22,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
   const {
     status, statusDetail, segments, speakers, isCapturing,
     sysChunkCount, micChunkCount, audioError, callDuration,
-    startSession, stopSession, renameSpeaker, addSpeaker
+    startSession, stopSession, renameSpeaker, addSpeaker, markAsMe, unmarkMe
   } = useRealtimeTranscription()
 
   const [activity, setActivity] = useState<ActivityItem[]>([])
@@ -79,7 +79,7 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
 
       {/* Controls bar */}
       <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--border-1)', background: 'var(--surface-raised)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <button onClick={isActive ? handleStop : () => startSession(sessionId, mode)} style={{
+        <button onClick={isActive ? handleStop : () => startSession(sessionId)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px',
           background: isActive ? 'var(--negative)' : 'var(--primary)',
           color: 'white', border: 'none', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)'
@@ -143,11 +143,13 @@ export default function MainApp({ sessionId, sessionName, notebookId, mode, onEn
           speakers={speakers}
           onAddSpeaker={addSpeaker}
           onRenameSpeaker={renameSpeaker}
+          onMarkAsMe={markAsMe}
+          onUnmarkMe={unmarkMe}
         />
 
         {/* Center: Transcript */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Transcript segments={segments} isCapturing={isCapturing} onRenameSpeaker={renameSpeaker} />
+          <Transcript segments={segments} speakers={speakers} isCapturing={isCapturing} onRenameSpeaker={renameSpeaker} />
         </div>
 
         {/* Right: Knowledge + Context */}

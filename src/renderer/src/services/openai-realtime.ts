@@ -1,16 +1,18 @@
 // OpenAI Realtime API — Dual-Channel WebSocket transcription service
 //
-// Architecture: TWO separate Realtime API sessions
-//   Session 1 (mic): receives mic audio → all transcripts tagged as "you"
-//   Session 2 (system): receives system audio → all transcripts tagged as "them"
-// This guarantees zero cross-contamination in speaker attribution.
+// Architecture: TWO separate Realtime API sessions, both always active
+//   Session 1 (mic):    in-room audio → slots mic-1, mic-2... labeled "In-Room N"
+//   Session 2 (system): remote audio  → slots rem-1, rem-2... labeled "Remote N"
+//
+// Both channels run gap-based diarization. Speakers appear as they speak.
+// The user can mark any slot as "Me" during or after the call.
 //
 // Audio format: Int16 PCM, 24kHz, mono.
 
 export type TranscriptSegment = {
   id: string
-  speaker: 'you' | 'them'
-  speakerSlot?: string   // e.g. 'them-1', 'them-2' ... 'them-15' for remote voices
+  speaker: 'mic' | 'sys'            // which physical channel
+  speakerSlot?: string              // 'mic-1'..'mic-15' or 'rem-1'..'rem-15'
   speakerName?: string
   speakerColor?: string
   text: string
@@ -45,9 +47,9 @@ function rmsEnergy(buffer: ArrayBuffer): number {
 
 const SILENCE_THRESHOLD = 200
 
-// Gaps longer than this between 'them' utterances may indicate a new speaker
+// Gaps longer than this between utterances may indicate a speaker change
 const SPEAKER_CHANGE_GAP_MS = 5000
-// Maximum number of distinct remote speaker slots
+// Maximum distinct speaker slots per channel
 const MAX_SPEAKER_SLOTS = 15
 
 let idCounter = 0
@@ -55,30 +57,30 @@ function nextId(prefix: string): string {
   return `${prefix}-${Date.now()}-${idCounter++}`
 }
 
-// A single-channel Realtime API session
+// A single-channel Realtime API session — always diarizes
 class RealtimeChannel {
   private ws: WebSocket | null = null
   private retryCount = 0
   private retryTimeout: ReturnType<typeof setTimeout> | null = null
   private stopped = false
   private pendingSegments = new Map<string, TranscriptSegment>()
-  private channel: 'you' | 'them'
+  private channel: 'mic' | 'sys'
+  private slotPrefix: string        // 'mic' for in-room, 'rem' for remote
   private languages: string[]
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
-  private diarize: boolean          // true for 'them' channel, or mic channel in face-to-face mode
 
   // Diarization state
-  private currentSlot = 1          // which slot number is currently speaking
-  private slotCount = 1            // total slots allocated so far
-  private lastSegmentTime = 0      // ms timestamp of last completed segment
+  private currentSlot = 1
+  private slotCount = 1
+  private lastSegmentTime = 0
 
-  constructor(channel: 'you' | 'them', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = [], diarize = false) {
+  constructor(channel: 'mic' | 'sys', onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
     this.channel = channel
+    this.slotPrefix = channel === 'mic' ? 'mic' : 'rem'
     this.onTranscript = onTranscript
     this.onStatus = onStatus
     this.languages = languages
-    this.diarize = diarize || channel === 'them'
   }
 
   connect(): void {
@@ -110,7 +112,6 @@ class RealtimeChannel {
 
   private sendSessionConfig(): void {
     const transcriptionConfig: Record<string, unknown> = { model: 'whisper-1' }
-    // If a single primary language is set, hint Whisper for better accuracy
     if (this.languages.length === 1 && this.languages[0] !== 'auto') {
       transcriptionConfig.language = this.languages[0]
     }
@@ -133,10 +134,8 @@ class RealtimeChannel {
 
   appendAudio(buffer: ArrayBuffer): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return
-
-    // Gate silent chunks for system audio to reduce noise
-    if (this.channel === 'them' && rmsEnergy(buffer) < SILENCE_THRESHOLD) return
-
+    // Gate silent system-audio chunks to reduce noise
+    if (this.channel === 'sys' && rmsEnergy(buffer) < SILENCE_THRESHOLD) return
     this.send({ type: 'input_audio_buffer.append', audio: base64FromInt16(buffer) })
   }
 
@@ -156,10 +155,8 @@ class RealtimeChannel {
         if (!delta) break
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          // Diarized channels assign a 'them-N' slot; non-diarized mic segments are 'you'
-          const speakerSlot = this.diarize ? `them-${this.currentSlot}` : undefined
-          const speaker = this.diarize ? 'them' : this.channel
-          seg = { id: nextId(this.channel), speaker, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
+          const speakerSlot = `${this.slotPrefix}-${this.currentSlot}`
+          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
           this.pendingSegments.set(itemId, seg)
         }
         seg.text += delta
@@ -171,26 +168,22 @@ class RealtimeChannel {
         const transcript = event.transcript as string
         let seg = this.pendingSegments.get(itemId)
         if (!seg) {
-          const speakerSlot = this.diarize ? `them-${this.currentSlot}` : undefined
-          const speaker = this.diarize ? 'them' : this.channel
-          seg = { id: nextId(this.channel), speaker, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
+          const speakerSlot = `${this.slotPrefix}-${this.currentSlot}`
+          seg = { id: nextId(this.channel), speaker: this.channel, speakerSlot, text: '', isFinal: false, timestamp: Date.now() }
         }
         seg.text = transcript ?? seg.text
         seg.isFinal = true
         this.onTranscript({ ...seg })
         this.pendingSegments.delete(itemId)
 
-        // After a finalized segment, update diarization timing for next segment
-        if (this.diarize) {
-          const now = Date.now()
-          const gap = this.lastSegmentTime > 0 ? now - this.lastSegmentTime : 0
-          // Large gap suggests a different speaker may have taken the floor
-          if (gap > SPEAKER_CHANGE_GAP_MS && this.slotCount < MAX_SPEAKER_SLOTS) {
-            this.slotCount++
-            this.currentSlot = this.slotCount
-          }
-          this.lastSegmentTime = now
+        // Gap-based speaker slot advancement
+        const now = Date.now()
+        const gap = this.lastSegmentTime > 0 ? now - this.lastSegmentTime : 0
+        if (gap > SPEAKER_CHANGE_GAP_MS && this.slotCount < MAX_SPEAKER_SLOTS) {
+          this.slotCount++
+          this.currentSlot = this.slotCount
         }
+        this.lastSegmentTime = now
         break
       }
       case 'error': {
@@ -227,51 +220,42 @@ class RealtimeChannel {
   }
 }
 
-// Dual-channel service that manages two parallel Realtime API sessions
+// Dual-channel service — mic (in-room) + sys (remote), both always active
 export class RealtimeTranscriptionService {
   private micChannel: RealtimeChannel | null = null
   private sysChannel: RealtimeChannel | null = null
   private onTranscript: TranscriptCallback
   private onStatus: StatusCallback
   private languages: string[]
-  private faceToFace: boolean
   private micConnected = false
   private sysConnected = false
 
-  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = [], faceToFace = false) {
+  constructor(onTranscript: TranscriptCallback, onStatus: StatusCallback, languages: string[] = []) {
     this.onTranscript = onTranscript
     this.onStatus = onStatus
     this.languages = languages
-    this.faceToFace = faceToFace
   }
 
   connect(): void {
     this.micConnected = false
     this.sysConnected = false
 
-    // In face-to-face mode: one mic channel with diarization, no system audio channel
-    this.micChannel = new RealtimeChannel('you', this.onTranscript, (status) => {
+    this.micChannel = new RealtimeChannel('mic', this.onTranscript, (status) => {
       if (status === 'connected') this.micConnected = true
       this.updateOverallStatus()
-    }, this.languages, this.faceToFace)
+    }, this.languages)
 
-    if (!this.faceToFace) {
-      this.sysChannel = new RealtimeChannel('them', this.onTranscript, (status) => {
-        if (status === 'connected') this.sysConnected = true
-        this.updateOverallStatus()
-      }, this.languages)
-    }
+    this.sysChannel = new RealtimeChannel('sys', this.onTranscript, (status) => {
+      if (status === 'connected') this.sysConnected = true
+      this.updateOverallStatus()
+    }, this.languages)
 
-    this.onStatus('connecting', this.faceToFace ? 'Opening mic channel...' : 'Opening dual channels...')
+    this.onStatus('connecting', 'Opening dual channels...')
     this.micChannel.connect()
-    if (!this.faceToFace) this.sysChannel?.connect()
+    this.sysChannel.connect()
   }
 
   private updateOverallStatus(): void {
-    if (this.faceToFace) {
-      if (this.micConnected) this.onStatus('connected', 'In-person mode active')
-      return
-    }
     if (this.micConnected && this.sysConnected) {
       this.onStatus('connected', 'Dual channels active')
     } else if (this.micConnected || this.sysConnected) {
@@ -279,8 +263,8 @@ export class RealtimeTranscriptionService {
     }
   }
 
-  appendAudio(buffer: ArrayBuffer, speaker: 'you' | 'them'): void {
-    if (speaker === 'you') {
+  appendAudio(buffer: ArrayBuffer, channel: 'mic' | 'sys'): void {
+    if (channel === 'mic') {
       this.micChannel?.appendAudio(buffer)
     } else {
       this.sysChannel?.appendAudio(buffer)

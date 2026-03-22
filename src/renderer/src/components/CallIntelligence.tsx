@@ -13,13 +13,15 @@ interface Props {
   speakers: Speaker[]
   onAddSpeaker: (name: string) => void
   onRenameSpeaker: (id: string, name: string) => void
+  onMarkAsMe: (id: string) => void
+  onUnmarkMe: (id: string) => void
 }
 
 const V = { sp2: '8px', sp3: '12px', sp4: '16px', sp5: '20px', sp6: '24px' }
 
 function fmtDur(s: number): string { return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}` }
 
-export default function CallIntelligence({ sessionName, contactName, isCapturing, callDuration, sentimentScore, sentimentLabel, segments, speakers, onAddSpeaker, onRenameSpeaker }: Props): React.ReactElement {
+export default function CallIntelligence({ sessionName, contactName, isCapturing, callDuration, sentimentScore, sentimentLabel, segments, speakers, onAddSpeaker, onRenameSpeaker, onMarkAsMe, onUnmarkMe }: Props): React.ReactElement {
   const [keyPoints, setKeyPoints] = useState<string[]>([])
   const [competitors, setCompetitors] = useState<string[]>([])
   const [actionItems, setActionItems] = useState<string[]>([])
@@ -91,11 +93,40 @@ export default function CallIntelligence({ sessionName, contactName, isCapturing
 
       {/* Speakers */}
       <SidebarSection title={`Speakers (${speakers.length})`}>
+        {speakers.length === 0 && (
+          <div style={{ fontSize: 10, color: 'var(--ink-4)', fontStyle: 'italic' }}>Waiting for voices...</div>
+        )}
         {speakers.map(sp => (
-          <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', fontSize: 'var(--text-xs)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sp.color, flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: sp.color }}>{sp.name}</span>
-            {sp.isUser && <span style={{ color: 'var(--ink-4)', fontSize: 10 }}>(you)</span>}
+          <div key={sp.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: sp.color, flexShrink: 0 }} />
+              <span style={{ fontWeight: 600, color: sp.color, flex: 1 }}>{sp.name}</span>
+              {/* Source badge */}
+              <span style={{
+                fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
+                background: sp.source === 'mic' ? 'var(--primary-subtle)' : 'var(--surface-2)',
+                color: sp.source === 'mic' ? 'var(--primary)' : 'var(--ink-3)'
+              }}>
+                {sp.source === 'mic' ? 'MIC' : 'NET'}
+              </span>
+            </div>
+            {/* Me / Not-me row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, paddingLeft: 13 }}>
+              {sp.isUser ? (
+                <>
+                  <span style={{ fontSize: 9, color: 'var(--positive)', fontWeight: 700 }}>✓ That's me</span>
+                  <button onClick={() => onUnmarkMe(sp.id)} style={{
+                    marginLeft: 4, padding: '1px 6px', background: 'none', border: '1px solid var(--border-1)',
+                    borderRadius: 3, fontSize: 9, color: 'var(--ink-3)', cursor: 'pointer'
+                  }}>Not me</button>
+                </>
+              ) : (
+                <button onClick={() => onMarkAsMe(sp.id)} style={{
+                  padding: '1px 8px', background: 'var(--primary-subtle)', border: '1px solid var(--primary)',
+                  borderRadius: 3, fontSize: 9, color: 'var(--primary)', fontWeight: 600, cursor: 'pointer'
+                }}>That's me</button>
+              )}
+            </div>
           </div>
         ))}
         <div style={{ display: 'flex', gap: 4, marginTop: V.sp2 }}>

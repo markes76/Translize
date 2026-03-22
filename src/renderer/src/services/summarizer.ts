@@ -16,7 +16,7 @@ export async function generateSummary(
   apiKey: string
 ): Promise<CallSummary> {
   const transcript = segments
-    .map(s => `[${s.speaker === 'you' ? 'You' : 'Them'}] ${s.text}`)
+    .map(s => `[${s.speakerName ?? (s.speaker === 'mic' ? 'In-Room' : 'Remote')}] ${s.text}`)
     .join('\n')
 
   const firstTs = segments[0]?.timestamp ?? Date.now()

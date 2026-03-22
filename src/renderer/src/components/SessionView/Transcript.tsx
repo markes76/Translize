@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TranscriptSegment } from '../../services/openai-realtime'
 
+import type { Speaker } from '../../hooks/useRealtimeTranscription'
+
 interface Props {
   segments: TranscriptSegment[]
+  speakers: Speaker[]
   isCapturing: boolean
   onRenameSpeaker?: (speakerSlot: string, name: string) => void
 }
@@ -11,7 +14,7 @@ const LANG_LABELS: Record<string, string> = {
   en: 'EN', he: 'HE', es: 'ES', fr: 'FR', de: 'DE', ar: 'AR', pt: 'PT', zh: 'ZH', ja: 'JA', ko: 'KO', ru: 'RU', it: 'IT'
 }
 
-export default function Transcript({ segments, isCapturing, onRenameSpeaker }: Props): React.ReactElement {
+export default function Transcript({ segments, speakers, isCapturing, onRenameSpeaker }: Props): React.ReactElement {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -80,10 +83,13 @@ export default function Transcript({ segments, isCapturing, onRenameSpeaker }: P
           const langTag = seg.language ? LANG_LABELS[seg.language] ?? seg.language.toUpperCase().slice(0, 2) : null
           const translated = translations[seg.id]
           const isTranslating = translating.has(seg.id)
-          const displayName = seg.speakerName ?? (seg.speaker === 'you' ? 'You' : 'Them')
-          const speakerColor = seg.speakerColor ?? (seg.speaker === 'you' ? 'var(--primary)' : 'var(--positive)')
-          // Only 'them' slots with a speakerSlot can be renamed
-          const renamableSlot = seg.speaker === 'them' && seg.speakerSlot ? seg.speakerSlot : null
+          const speakerEntry = seg.speakerSlot ? speakers.find(s => s.id === seg.speakerSlot) : undefined
+          const isMe = speakerEntry?.isUser === true
+          const baseName = seg.speakerName ?? seg.speakerSlot ?? (seg.speaker === 'mic' ? 'In-Room' : 'Remote')
+          const displayName = isMe ? `You (${baseName})` : baseName
+          const speakerColor = seg.speakerColor ?? 'var(--primary)'
+          // All slots with a speakerSlot are renamable
+          const renamableSlot = seg.speakerSlot ?? null
           const isRenaming = renamableSlot !== null && renamingSlot === renamableSlot
 
           return (

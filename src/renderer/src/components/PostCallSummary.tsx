@@ -417,7 +417,7 @@ export default function PostCallSummary({ segments, sessionId, sessionName, note
                   <div style={{ maxHeight: 300, overflow: 'auto', padding: V.sp4, background: 'var(--surface-raised)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-1)', fontSize: 'var(--text-xs)', lineHeight: 1.7 }}>
                     {editedSegs.map(s => (
                       <div key={s.id} style={{ marginBottom: V.sp2 }}>
-                        <strong style={{ color: s.speaker === 'you' ? 'var(--primary)' : 'var(--positive)' }}>{s.speakerName ?? (s.speaker === 'you' ? 'You' : 'Them')}:</strong>{' '}
+                        <strong style={{ color: s.speaker === 'mic' ? 'var(--primary)' : 'var(--positive)' }}>{s.speakerName ?? (s.speaker === 'mic' ? 'In-Room' : 'Remote')}:</strong>{' '}
                         <span style={{ color: 'var(--ink-2)' }}>{s.text}</span>
                       </div>
                     ))}

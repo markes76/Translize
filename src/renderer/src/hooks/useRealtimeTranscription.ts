@@ -8,6 +8,7 @@ export interface Speaker {
   name: string
   color: string
   isUser: boolean
+  source: 'mic' | 'sys'    // 'mic' = in-room, 'sys' = remote
 }
 
 export interface TranscriptionState {
@@ -23,10 +24,12 @@ export interface TranscriptionState {
 }
 
 export interface TranscriptionActions {
-  startSession: (sessionId: string, mode?: string) => Promise<void>
+  startSession: (sessionId: string) => Promise<void>
   stopSession: () => Promise<{ filePath: string; durationMs: number } | null>
   renameSpeaker: (id: string, name: string) => void
   addSpeaker: (name: string) => void
+  markAsMe: (id: string) => void
+  unmarkMe: (id: string) => void
 }
 
 const MIC_SAMPLE_RATE = 24000
@@ -41,16 +44,33 @@ export const DEFAULT_COLORS = [
 // How many recent segments to include as context when detecting a speaker name
 const DETECTION_CONTEXT_WINDOW = 4
 
+// Parse slot number from 'mic-1', 'rem-2', 'them-3' (legacy)
 function slotIndex(slot: string): number {
-  const n = parseInt(slot.replace('them-', ''), 10)
-  return isNaN(n) ? 0 : n - 1
+  const m = slot.match(/(\d+)$/)
+  return m ? parseInt(m[1], 10) - 1 : 0
+}
+
+// Default display names for slots
+function defaultSlotName(slot: string): string {
+  const n = slotIndex(slot) + 1
+  if (slot.startsWith('mic-')) return `In-Room ${n}`
+  if (slot.startsWith('rem-')) return `Remote ${n}`
+  return `Speaker ${n}` // legacy 'them-N' slots
+}
+
+function slotColorIndex(slot: string): number {
+  // Mic slots use even indices, sys slots use odd so colors visually distinguish channels
+  const n = slotIndex(slot)
+  if (slot.startsWith('mic-')) return (n * 2) % DEFAULT_COLORS.length
+  if (slot.startsWith('rem-')) return (n * 2 + 1) % DEFAULT_COLORS.length
+  return n % DEFAULT_COLORS.length
 }
 
 export function useRealtimeTranscription(): TranscriptionState & TranscriptionActions {
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [statusDetail, setStatusDetail] = useState('')
   const [segments, setSegments] = useState<TranscriptSegment[]>([])
-  const [speakers, setSpeakers] = useState<Speaker[]>([{ id: 'you', name: 'You', color: DEFAULT_COLORS[0], isUser: true }])
+  const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [isCapturing, setIsCapturing] = useState(false)
   const [sysChunkCount, setSysChunkCount] = useState(0)
   const [micChunkCount, setMicChunkCount] = useState(0)
@@ -64,28 +84,17 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
   const micProcessorRef = useRef<ScriptProcessorNode | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Slot name registry: { 'them-1': 'Sarah', 'them-3': 'John' }
-  // Kept in a ref so detection callbacks can read the latest value without stale closure issues
+  // Slot name registry: { 'mic-1': 'Sarah', 'rem-1': 'John' }
   const slotNamesRef = useRef<Record<string, string>>({})
   // Track which slots already have pending detection to avoid duplicate API calls
   const detectionInFlightRef = useRef<Set<string>>(new Set())
 
   const handleTranscriptSegment = useCallback((seg: TranscriptSegment) => {
-    if (seg.speaker === 'you') {
-      seg.speakerName = 'You'
-      seg.speakerColor = DEFAULT_COLORS[0]
-    } else if (seg.speakerSlot) {
-      // Apply known name for this slot immediately if we already identified them
+    if (seg.speakerSlot) {
       const knownName = slotNamesRef.current[seg.speakerSlot]
-      if (knownName) {
-        seg.speakerName = knownName
-        seg.speakerColor = DEFAULT_COLORS[slotIndex(seg.speakerSlot) % DEFAULT_COLORS.length]
-      } else {
-        // Fallback label until name is detected
-        const n = slotIndex(seg.speakerSlot) + 1
-        seg.speakerName = `Speaker ${n}`
-        seg.speakerColor = DEFAULT_COLORS[slotIndex(seg.speakerSlot) % DEFAULT_COLORS.length]
-      }
+      const colorIdx = slotColorIndex(seg.speakerSlot)
+      seg.speakerName = knownName ?? defaultSlotName(seg.speakerSlot)
+      seg.speakerColor = DEFAULT_COLORS[colorIdx]
     }
 
     setSegments(prev => {
@@ -97,21 +106,18 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     })
   }, [])
 
-  // Fires on every finalized 'them' segment — detects if speaker named themselves
+  // Fires on every finalized segment — detects if speaker named themselves
   const detectSegmentSpeaker = useCallback(async (seg: TranscriptSegment, allSegments: TranscriptSegment[]) => {
     if (!seg.speakerSlot || !seg.isFinal) return
-    // Skip if name already known for this slot
     if (slotNamesRef.current[seg.speakerSlot]) return
-    // Skip if a detection is already in flight for this slot
     if (detectionInFlightRef.current.has(seg.speakerSlot)) return
 
     detectionInFlightRef.current.add(seg.speakerSlot)
 
-    // Build a small context window of recent final 'them' segments
     const recentFinal = allSegments
-      .filter(s => s.speaker === 'them' && s.isFinal && s.id !== seg.id)
+      .filter(s => s.speakerSlot && s.isFinal && s.id !== seg.id)
       .slice(-DETECTION_CONTEXT_WINDOW)
-      .map(s => `${s.speakerName ?? s.speakerSlot ?? 'them'}: "${s.text}"`)
+      .map(s => `${s.speakerName ?? s.speakerSlot}: "${s.text}"`)
 
     try {
       const result = await window.translize.speaker.detectSegment(
@@ -124,82 +130,71 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
       if (result?.name && result.slot) {
         const slot = result.slot
         const name = result.name.trim()
-
-        // Register the name in the slot registry
         slotNamesRef.current[slot] = name
+        const colorIdx = slotColorIndex(slot)
 
-        // Add to speakers list if not already present
-        const colorIdx = slotIndex(slot) % DEFAULT_COLORS.length
         setSpeakers(prev => {
           if (prev.some(s => s.name === name)) return prev
-          return [...prev, {
-            id: slot,
-            name,
-            color: DEFAULT_COLORS[colorIdx],
-            isUser: false
-          }]
+          const existing = prev.find(s => s.id === slot)
+          if (existing) return prev.map(s => s.id === slot ? { ...s, name } : s)
+          return prev
         })
 
-        // Retroactively update all segments from this slot
         setSegments(prev => prev.map(s => {
           if (s.speakerSlot === slot) {
             return { ...s, speakerName: name, speakerColor: DEFAULT_COLORS[colorIdx] }
           }
           return s
         }))
+
+        // Also update speaker entry name
+        setSpeakers(prev => prev.map(s => s.id === slot ? { ...s, name } : s))
       }
     } catch { /* detection failure is silent */ } finally {
       detectionInFlightRef.current.delete(seg.speakerSlot)
     }
   }, [])
 
-  // When a new segment arrives and is final, trigger per-segment detection
+  // When a new final segment arrives, trigger detection and ensure speaker entry exists
   useEffect(() => {
-    const lastFinalThem = [...segments].reverse().find(s => s.speaker === 'them' && s.isFinal && s.speakerSlot)
-    if (lastFinalThem) {
-      detectSegmentSpeaker(lastFinalThem, segments)
-    }
+    const lastFinal = [...segments].reverse().find(s => s.isFinal && s.speakerSlot)
+    if (lastFinal) detectSegmentSpeaker(lastFinal, segments)
   }, [segments, detectSegmentSpeaker])
 
-  // Ensure speaker slots with no detected name have an entry in the speakers list
+  // Ensure every slot seen in segments has a speaker entry
   useEffect(() => {
     if (!isCapturing) return
     const knownSlots = new Set(speakers.map(s => s.id))
-    const unmappedSlots = new Set<string>()
+    const newSlots: Speaker[] = []
     for (const seg of segments) {
-      if (seg.speakerSlot && !knownSlots.has(seg.speakerSlot)) {
-        unmappedSlots.add(seg.speakerSlot)
-      }
+      if (!seg.speakerSlot || knownSlots.has(seg.speakerSlot)) continue
+      knownSlots.add(seg.speakerSlot)
+      const colorIdx = slotColorIndex(seg.speakerSlot)
+      const source: 'mic' | 'sys' = seg.speakerSlot.startsWith('mic-') ? 'mic' : 'sys'
+      newSlots.push({
+        id: seg.speakerSlot,
+        name: slotNamesRef.current[seg.speakerSlot] ?? defaultSlotName(seg.speakerSlot),
+        color: DEFAULT_COLORS[colorIdx],
+        isUser: false,
+        source
+      })
     }
-    if (unmappedSlots.size === 0) return
-
-    setSpeakers(prev => {
-      const next = [...prev]
-      for (const slot of unmappedSlots) {
-        if (next.some(s => s.id === slot)) continue
-        const n = slotIndex(slot) + 1
-        const colorIdx = slotIndex(slot) % DEFAULT_COLORS.length
-        next.push({ id: slot, name: `Speaker ${n}`, color: DEFAULT_COLORS[colorIdx], isUser: false })
-      }
-      return next
-    })
+    if (newSlots.length > 0) setSpeakers(prev => [...prev, ...newSlots])
   }, [segments, speakers, isCapturing])
 
   const renameSpeaker = useCallback((id: string, name: string) => {
-    // Update the slot name registry if this is a slot ID
-    if (id.startsWith('them-')) {
-      slotNamesRef.current[id] = name
-    }
+    slotNamesRef.current[id] = name
     setSpeakers(prev => prev.map(s => s.id === id ? { ...s, name } : s))
-    setSegments(prev => prev.map(s => {
-      const matchBySlot = s.speakerSlot === id
-      const matchByOldName = s.speakerName === speakers.find(sp => sp.id === id)?.name
-      if (matchBySlot || matchByOldName) {
-        return { ...s, speakerName: name }
-      }
-      return s
-    }))
-  }, [speakers])
+    setSegments(prev => prev.map(s => s.speakerSlot === id ? { ...s, speakerName: name } : s))
+  }, [])
+
+  const markAsMe = useCallback((id: string) => {
+    setSpeakers(prev => prev.map(s => ({ ...s, isUser: s.id === id })))
+  }, [])
+
+  const unmarkMe = useCallback((id: string) => {
+    setSpeakers(prev => prev.map(s => s.id === id ? { ...s, isUser: false } : s))
+  }, [])
 
   const addSpeaker = useCallback((name: string) => {
     const colorIdx = speakers.length % DEFAULT_COLORS.length
@@ -207,7 +202,8 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
       id: `manual-${Date.now()}`,
       name,
       color: DEFAULT_COLORS[colorIdx],
-      isUser: false
+      isUser: false,
+      source: 'mic'
     }])
   }, [speakers])
 
@@ -228,7 +224,7 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
           acc[pos++] = s < 0 ? s * 0x8000 : s * 0x7FFF
           if (pos >= MIC_CHUNK_FRAMES) {
             const chunk = acc.buffer.slice(0)
-            service.appendAudio(chunk, 'you')
+            service.appendAudio(chunk, 'mic')
             window.translize.recording.micChunk(chunk)
             setMicChunkCount(p => p + 1)
             acc = new Int16Array(MIC_CHUNK_FRAMES)
@@ -246,26 +242,18 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     micStreamRef.current?.getTracks().forEach(t => t.stop()); micStreamRef.current = null
   }, [])
 
-  const startSession = useCallback(async (sessionId: string, mode?: string) => {
+  const startSession = useCallback(async (sessionId: string) => {
     setSysChunkCount(0); setMicChunkCount(0); setAudioError(''); setCallDuration(0)
-    setSpeakers([{ id: 'you', name: 'You', color: DEFAULT_COLORS[0], isUser: true }])
+    setSpeakers([])
     setSegments([])
-    // Reset diarization state for the new call
     slotNamesRef.current = {}
     detectionInFlightRef.current = new Set()
 
-    const isFaceToFace = mode === 'facetime'
-
-    // In face-to-face mode we skip system audio capture — all voices come through the mic
-    if (!isFaceToFace) {
-      const audioResult = await window.translize.audio.start()
-      if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
-    }
+    const audioResult = await window.translize.audio.start()
+    if (audioResult.error) { setStatus('error'); setStatusDetail(audioResult.error); return }
     setIsCapturing(true)
 
-    // Start recording (fire-and-forget — ok if recordings_enabled is false, writer handles it)
     window.translize.recording.start(sessionId).catch(() => {})
-
     timerRef.current = setInterval(() => setCallDuration(p => p + 1), 1000)
 
     let languages: string[] = []
@@ -277,13 +265,12 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     const service = new RealtimeTranscriptionService(
       handleTranscriptSegment,
       (s, detail) => { setStatus(s === 'connecting' ? 'connecting' : s === 'connected' ? 'connected' : s === 'disconnected' ? 'disconnected' : 'error'); setStatusDetail(detail ?? '') },
-      languages,
-      isFaceToFace
+      languages
     )
     serviceRef.current = service; service.connect()
     startMicCapture(service)
 
-    const removeChunk = window.translize.audio.onChunk((buffer: ArrayBuffer) => { service.appendAudio(buffer, 'them'); setSysChunkCount(p => p + 1) })
+    const removeChunk = window.translize.audio.onChunk((buffer: ArrayBuffer) => { service.appendAudio(buffer, 'sys'); setSysChunkCount(p => p + 1) })
     const removeStopped = window.translize.audio.onStopped(() => setIsCapturing(false))
     const removePermDenied = window.translize.audio.onPermissionDenied(() => { setStatus('error'); setStatusDetail('Screen Recording permission denied.'); setIsCapturing(false) })
     const removeError = window.translize.audio.onError((msg: string) => setAudioError(msg))
@@ -296,7 +283,6 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     removeListenersRef.current.forEach(fn => fn()); removeListenersRef.current = []
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     setStatus('idle'); setStatusDetail('')
-    // Stop recording and return the result so the caller can save audioFile
     try {
       return await window.translize.recording.stop()
     } catch {
@@ -311,5 +297,5 @@ export function useRealtimeTranscription(): TranscriptionState & TranscriptionAc
     }
   }, [stopMicCapture])
 
-  return { status, statusDetail, segments, speakers, isCapturing, sysChunkCount, micChunkCount, audioError, callDuration, startSession, stopSession, renameSpeaker, addSpeaker }
+  return { status, statusDetail, segments, speakers, isCapturing, sysChunkCount, micChunkCount, audioError, callDuration, startSession, stopSession, renameSpeaker, addSpeaker, markAsMe, unmarkMe }
 }
